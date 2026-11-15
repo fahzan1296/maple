@@ -1,5 +1,7 @@
 <div align="center">
 
+  <img src="assets/icon.svg" alt="maple icon" width="160" height="160" />
+
   <h1>maple</h1>
 
   <p>
