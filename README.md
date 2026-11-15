@@ -8,8 +8,6 @@
 
   <img src="assert/maple-readme-banner.png" alt="maple — RAM-efficient, multi-session TUI coding agent" width="720" />
 
-  <img src="assets/icon.svg" alt="maple icon" width="160" height="160" />
-
   <h1>maple</h1>
 
   <p>
