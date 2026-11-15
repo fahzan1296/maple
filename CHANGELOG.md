@@ -27,12 +27,20 @@ All notable changes to this project are documented here. The format follows
   non-blocking `branch` lineage.
 - CLI (`src/cli.rs`, `src/main.rs`): `maple headless` prints a JSON session
   summary, `maple list` prints session headers, global `--resume/--title/--model`.
-- TUI (`src/tui/`): header/transcript/input/statusline layout, input mode,
-  `q`/Ctrl-C quit, `n` new session, `j`/`k` scroll, `i` edit + Enter send.
+- TUI (`src/tui/`): transcript / composer / statusline layout, agent hub
+  (`h`: roster sidebar + inspector, `t` tree rails, `/` filter), session picker
+  overlay (`/resume`), slash commands (`/new`, `/fork`, `/hub`), `q`/Ctrl-C quit,
+  `n` new session, `j`/`k` scroll, `i` edit + Enter send.
 - `tests/session_store.rs` — 8 tests: roundtrip, branch lineage, open by
   stem/id, list ordering, blob addressing, lease contention, bounded scan.
-- `tests/tui_render.rs` — asserts the rendered buffer contains the header,
-  cwd, model, transcript, input, and message text.
+- `tests/tui_render.rs` — asserts the rendered buffer contains the transcript,
+  composer, statusline, and message text.
+- `tests/tui_parity.rs` — 8 tests: hub chrome, roster rows, tree branches, age
+  labels, picker, roster scan/activity, ask delivery, activity tab render.
+- Hub Activity tab: recent transcript entries across sessions (bounded feed,
+  filter, Enter jumps to the source session) and the `a` ask form, which delivers
+  a message into the selected peer's transcript with a `from` marker.
+- Statusline now surfaces the last status/error message (append, resume, ask).
 
 ### Changed
 

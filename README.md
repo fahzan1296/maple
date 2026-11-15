@@ -6,6 +6,8 @@
 
 <div align="center">
 
+  <img src="assert/maple-readme-banner.png" alt="maple — RAM-efficient, multi-session TUI coding agent" width="720" />
+
   <h1>maple</h1>
 
   <p>
@@ -76,23 +78,36 @@ see `THIRD-PARTY-NOTICES`.
 
 ## :camera: Screenshots
 
-The TUI is four regions: header, transcript, input, statusline.
+The TUI is three regions: transcript, composer, statusline. `h` opens the agent
+hub (roster sidebar + inspector), `/resume` opens the session picker.
 
 ```text
-╭─ maple ─ 01a1de21 ──────────────────────────────────────────────────────────╮
-│ cwd    /home/Fahzan/maple                                                 │
-│ model  unknown                                                           │
-│ pid    4242                                                              │
-╰────────────────────────────────────────────────────────────────────────────╯
-╭─ transcript ──────────────────────────────────────────────────────────────╮
-│ [2026-11-15T07:34:42] message  hello tui                                 │
-│ [2026-11-15T07:35:01] message  second line                                │
-│                                                                       ▲   │
-╰────────────────────────────────────────────────────────────────────────────╯
-╭─ input  (i edit) ──────────────────────────────────────────────────────────╮
-│ type a message…                                                          │
-╰────────────────────────────────────────────────────────────────────────────╯
- q quit · i input · n new session · j/k scroll                    2 entries
+┌ maple · 01a1de8f ────────────────────────────────────────────────────────────┐
+│ 2026-11-15T09:35:37  message  ship the hub frame                              │
+│ 2026-11-15T09:35:37  usage    $0.500 · 1.2K tok · bash                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ input  (i edit) ─────────────────────────────────────────────────────────────┐
+│ type a message…                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+i edit · h hub · / command · q quit                                             (2 peers) · test-model · /work/maple
+
+╭─ Agent Hub ──────────────────────┬─────────────────────────────────────────────╮
+│  ❯ ◐ 01a1de8f  hub ui            ◐ 01a1de8f-f1f9-7be3-9e08-a18c0f465095 · busy │
+│                                  model      test-model                         │
+│  ship the hub frame              tool       bash                               │
+│  $0.500 · 1 req · 1.2K tok       age        0s                                 │
+│                                  Task                                          │
+│                                  ship the hub frame                            │
+│                                  Usage                                         │
+│                                  $0.500 · 1.5s · 1 req · 1 tools · 1.2K tok    │
+│                                  ────────── 1.2K/200.0K 1%                     │
+│                                  Lineage                                       │
+│                                  Parent     —                                  │
+│                                  Registered 2026-11-15T09:35:37                │
+│                                  cwd        /work/maple                        │
+├──────────────────────────────────┴─────────────────────────────────────────────┤
+│  [ Agents ]    Activity                                                        │
+╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## :space_invader: Tech Stack
@@ -206,9 +221,18 @@ Keybindings:
 
 | Key | Mode | Action |
 | --- | --- | --- |
-| `i` | normal | enter input mode |
-| `Esc` | input | cancel back to normal |
-| `Enter` | input | append the message to the transcript |
+| `i` | normal | enter composer (edit an existing entry) |
+| `Esc` | composer | cancel back to normal |
+| `Enter` | composer | append the message to the transcript |
+| `h` | normal | toggle the agent hub (roster + inspector) |
+| `j` / `k` | hub | move the roster selection |
+| `t` | hub | toggle tree (lineage rails) |
+| `/` | hub | filter the roster |
+| `a` | hub (Agents) | ask the selected peer — compose a message into its transcript |
+| `Tab` | hub | switch Agents / Activity |
+| `Enter` | hub (Activity) | open the session that produced the selected entry |
+| `Esc` | hub | close the hub |
+| `/` | normal | command palette (`/resume`, `/new`, `/fork`, `/hub`) |
 | `n` | normal | start a new independent session |
 | `j` / `k` | normal | scroll the transcript |
 | `q`, `Ctrl-C` | any | quit |
@@ -221,7 +245,7 @@ never blocks either side from writing.
 Implementation is incremental, in `PRD.md` §14 order (no phase gates).
 
 * [x] CLI + session core
-* [x] TUI renderer (minimal: header / transcript / input / statusline)
+* [x] TUI renderer (transcript / composer / statusline, agent hub, session picker)
 * [ ] Agent Hub (roster, inspector, focus/steer/revive/kill, `ask`)
 * [ ] Mesh (`.pi/messenger` compat: registry, inbox+watch, feed, lock, hooks)
 * [ ] Resource guard (pre-flight abort, monitoring, OOM protocol)
