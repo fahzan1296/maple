@@ -75,6 +75,9 @@ All notable changes to this project are documented here. The format follows
   footer rows, persistent scroll viewport with selection reveal) plus the
   `ScrollView` reveal-range API (`ScrollRangeAnchor`, `reveal_range`,
   `logical_row_at`).
+- Apps slice #4: `apps::debug::log_viewer` model (filter, pagination, expansion,
+  selection, session boundary marker, older-history paging) plus
+  `split_log_text` / `build_log_copy_payload`.
 
 ### Changed
 
