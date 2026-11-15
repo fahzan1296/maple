@@ -62,6 +62,10 @@ All notable changes to this project are documented here. The format follows
   identicon, SHA-256 digest) and `apps::debug::log_formatting` (sanitized,
   wrapped log rows; RFC 3339 and offset-less ISO-8601 timestamps; finite pid).
   `maple-tui` now re-exports `ansi_scan::strip_ansi`.
+- `scripts/install.sh` — release build into `~/.local/bin` (or `--prefix DIR`,
+  `--global`); `scripts/uninstall.sh` removes it again.
+- `scripts/dev.sh` — local CI mirror: build and test with two jobs, then
+  `fmt`/`clippy` when those tools are installed.
 
 ### Changed
 

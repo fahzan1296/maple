@@ -301,12 +301,25 @@ cargo build --release
 
 The binary lands in `target/release/maple`.
 
+Install the binary into a `PATH` directory (release build included):
+
+```bash
+scripts/install.sh              # ~/.local/bin/maple
+scripts/install.sh --prefix /opt/bin
+scripts/install.sh --global     # /usr/local/bin/maple
+```
+
+`scripts/uninstall.sh` removes it again.
+
 <!-- Running Tests -->
 ### :test_tube: Running Tests
 
 ```bash
 cargo test
 ```
+
+`scripts/dev.sh` mirrors CI locally: build, test (two threads), then
+`fmt`/`clippy` when those tools are installed.
 
 <!-- Run Locally -->
 ### :running: Run Locally
