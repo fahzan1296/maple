@@ -1,0 +1,22 @@
+# Reference material (reading only, not part of the product)
+oh-my-pi/
+pi-messenger/
+
+# pi-messenger mesh state (local, ephemeral)
+.pi/
+
+# maple agent state
+.maple/
+
+# node / bun
+node_modules/
+dist/
+*.tsbuildinfo
+
+# rust
+target/
+
+# logs / editor / os
+*.log
+.DS_Store
+*.swp

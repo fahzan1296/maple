@@ -1,0 +1,24 @@
+# Third-Party Notices
+
+`maple` is a **clean-room implementation**. No source code is copied from,
+vendored from, or derived from the projects below. They were used as reading
+material and as behavior/format references only. All code in this repository is
+written by maple contributors and licensed under MIT (see `LICENSE`).
+
+## References (no code reused)
+
+| Project | License | Version read | Used as |
+|---|---|---|---|
+| [oh-my-pi](https://github.com/can1357/oh-my-pi) | MIT | 18.20.2 (`7c49c11`, 2026-11-14) | TUI renderer model, session/transcript model, hashline edit model, autolearn pipeline, native-module roles |
+| [pi-messenger](https://github.com/nicobailon/pi-messenger) | MIT | 0.15.2 | `.pi/messenger` on-disk format and action semantics (registry, inbox, feed.jsonl, reservations, team memory) |
+
+## Compatibility note
+
+maple reads and writes the `.pi/messenger` file format so that existing
+pi-messenger agents can interoperate. A file format and an action vocabulary
+are not copyrighted expression; no pi-messenger code is included.
+
+## Runtime dependencies
+
+Runtime dependencies introduced by maple will be listed here with name,
+version, license, and source URL before the first release (SOP-DOC).
