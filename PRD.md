@@ -173,7 +173,7 @@ ADR-0001). Semua operasi file-only, tanpa daemon.
 | `reserve(paths, reason)` | tulis `reservations[]` di registri | pi-messenger |
 | `release(paths?)` | kosongkan (default semua) | pi-messenger |
 | `feed(limit)` | baca `feed.jsonl` | pi-messenger |
-| `team.memory.note(type, message)` | tulis `team/memory.jsonl` + mirror `docs/peers/decisions.md` | KONTRAK |
+| `team.memory.note(type, message)` | tulis `team/memory.jsonl` + mirror `.pi/messenger/team/decisions.md` | KONTRAK |
 | `team.memory.list` / `team.setup` / `team.roles` / `team.status` | baca state team | KONTRAK + pi-messenger |
 | `plan` / `work` / `task.*` (opsional M4) | crew: graph dependensi + wave paralel | pi-messenger crew |
 
@@ -348,7 +348,7 @@ Entri lanjut: `{ "type": "...", "id": "8-char", "parentId": "...", ... }`.
 ### 13.6 Team memory (`team/memory.jsonl`) + mirror
 
 `{ "type": "decision|interface|risk|handoff", "message": "…", "from": "…", "ts": "…" }`
-Mirror append-only di `docs/peers/decisions.md`.
+Mirror append-only di `.pi/messenger/team/decisions.md` (dikelola pi-messenger).
 
 ---
 

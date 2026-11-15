@@ -4,7 +4,7 @@
 
 You are one autonomous agent on this repository, coordinating with peers via `pi-messenger`. You own your current job and its declared scope. The collective owns cross-scoped and product-level outcomes. Quality and security are non-negotiable foundations.
 
-**Coordination**: `pi-messenger` (Pi extension; `pi install npm:pi-messenger`, restart, verify with `pi_messenger({action:"list"})`). Your identity is your pi-messenger agent name (auto-assigned, e.g. `SwiftRaven`). Sessions are ephemeral; names disappear when sessions end. `team.memory` and `docs/peers/decisions.md` are durable; `send`/`broadcast` are ephemeral.
+**Coordination**: `pi-messenger` (Pi extension; `pi install npm:pi-messenger`, restart, verify with `pi_messenger({action:"list"})`). Your identity is your pi-messenger agent name (auto-assigned, e.g. `SwiftRaven`). Sessions are ephemeral; names disappear when sessions end. `team.memory` and its `decisions.md` mirror (`.pi/messenger/team/decisions.md`) are durable; `send`/`broadcast` are ephemeral.
 
 **Session start, in order**: `pi_messenger({action:"list"})` → read memory → `pi_messenger({action:"feed",limit:50})` → `pi_messenger({action:"team.memory.list",limit:20})` → read `KONTRAK.md` if relevant → §SOP-WORK.
 
@@ -88,7 +88,7 @@ You are one autonomous agent on this repository, coordinating with peers via `pi
 - **Roster**: `pi_messenger({action:"list"})` (live agents + presence), `whois({name})` (details), `status` (your status), `feed({limit})` (activity). Record snapshot before sends.
 - **Addressing**: `broadcast` for collective; `send` for targeted. Never `send` when `broadcast` would serve. Never broadcast trivia (each broadcast interrupts every live agent).
 - **Reservations**: `reserve({paths, reason})` claims files; `release({paths})` frees (omit to release all). Enforced by `tool_call` hook. Never work around a reservation.
-- **Durable record**: `team.memory.note({type:"decision"|"interface"|"risk"|"handoff", message})` + mirror to `docs/peers/decisions.md` for audit.
+- **Durable record**: `team.memory.note({type:"decision"|"interface"|"risk"|"handoff", message})` + mirror to `.pi/messenger/team/decisions.md` for audit.
 - **`scopeToFolder:true`** limits visibility to same directory; coordinate via `team.memory` or repo otherwise.
 
 ## 4. SOP-RESLIM — Aggressive resource discipline (primary focus)
@@ -392,7 +392,7 @@ Assume professional competence with gh, git, Actions, scanners (gitleaks, trivy,
 
 ## 18. SOP-TEMPLATES — Artifact templates (minimal)
 
-Assume standard templates. **Conventional Commits** (`<type>(<scope>): <subject>`, subject imperative ≤72, body WHY/WHAT/IMPACT wrapped at 72, footer `BREAKING CHANGE:`/`Closes: #NNN`). **Keep a Changelog** (`[Unreleased]` on top; Added/Changed/Deprecated/Removed/Fixed/Security). **ADR** (Status/Date/Deciders/Context/Decision/Alternatives/Consequences/Evidence/Justification/Review date). **Branch naming** (`feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `hotfix/<issue>-<slug>`, `chore/<slug>`, `docs/<slug>`, `refactor/<slug>`, `test/<slug>`, `release/v<major.minor.patch>`). **Labels** (types/areas/priorities/status/size/special/release). **Milestones** (`vX.Y.Z`, `Q<n>-<year>`, `Backlog`). **Issue templates** (bug, feature). **PR template** (what/why/Closes/how/evidence/risks+rollback/checklist). **Release notes** (highlights/added/changed/fixed/security/deprecated/removed/breaking/upgrade/checksums/SBOM/acks). **Incident post-mortem** (id/severity/date/duration/authors/summary/impact/timeline/root cause/contributing/what went well/what went wrong/action items/lessons/appendix). **Security advisory** (id/CVE/severity/CVSS/affected/patched/published/description/impact/components/patches/workarounds/credits/timeline/references). **team.memory.note** types: `decision`/`interface`/`risk`/`handoff`. **Mirror** `docs/peers/decisions.md`: append-only audit trail, referenced from `team.memory` entries.
+Assume standard templates. **Conventional Commits** (`<type>(<scope>): <subject>`, subject imperative ≤72, body WHY/WHAT/IMPACT wrapped at 72, footer `BREAKING CHANGE:`/`Closes: #NNN`). **Keep a Changelog** (`[Unreleased]` on top; Added/Changed/Deprecated/Removed/Fixed/Security). **ADR** (Status/Date/Deciders/Context/Decision/Alternatives/Consequences/Evidence/Justification/Review date). **Branch naming** (`feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `hotfix/<issue>-<slug>`, `chore/<slug>`, `docs/<slug>`, `refactor/<slug>`, `test/<slug>`, `release/v<major.minor.patch>`). **Labels** (types/areas/priorities/status/size/special/release). **Milestones** (`vX.Y.Z`, `Q<n>-<year>`, `Backlog`). **Issue templates** (bug, feature). **PR template** (what/why/Closes/how/evidence/risks+rollback/checklist). **Release notes** (highlights/added/changed/fixed/security/deprecated/removed/breaking/upgrade/checksums/SBOM/acks). **Incident post-mortem** (id/severity/date/duration/authors/summary/impact/timeline/root cause/contributing/what went well/what went wrong/action items/lessons/appendix). **Security advisory** (id/CVE/severity/CVSS/affected/patched/published/description/impact/components/patches/workarounds/credits/timeline/references). **team.memory.note** types: `decision`/`interface`/`risk`/`handoff`. **Mirror** `.pi/messenger/team/decisions.md`: append-only audit trail, referenced from `team.memory` entries.
 
 ## 19. SOP-G1 — ORIENT
 
@@ -593,7 +593,7 @@ Coverage: critical 100%, business logic 90%, infra 80%, UI 70%, utility 80%. Typ
 
 ## 44. SOP-DOC — Documentation
 
-Required: README, CHANGELOG, CONTRIBUTING, SECURITY, LICENSE, CODE_OF_CONDUCT, docs/adr, docs/runbook, docs/operations (deployment, secrets, backup, observability, rollback, GitHub Actions, **resource limits and OOM runbook**), API docs, shared contract file(s), SOP reference, threat model, system model where non-trivial, `docs/peers/decisions.md` (mirror). UI: screenshots/GIFs. External deps: source URL + version + retrieval date. Update in same PR. No stale >1 month. No inaccuracy. Concrete examples. Review as strictly as code. ADR for significant architecture decisions. Durable learnings promoted to docs. `team.memory` for decisions affecting multiple agents. Documentation is not a substitute for `send`/`broadcast` coordination, nor for memory persistence.
+Required: README, CHANGELOG, CONTRIBUTING, SECURITY, LICENSE, CODE_OF_CONDUCT, docs/adr, docs/runbook, docs/operations (deployment, secrets, backup, observability, rollback, GitHub Actions, **resource limits and OOM runbook**), API docs, shared contract file(s), SOP reference, threat model, system model where non-trivial, `.pi/messenger/team/decisions.md` (mirror). UI: screenshots/GIFs. External deps: source URL + version + retrieval date. Update in same PR. No stale >1 month. No inaccuracy. Concrete examples. Review as strictly as code. ADR for significant architecture decisions. Durable learnings promoted to docs. `team.memory` for decisions affecting multiple agents. Documentation is not a substitute for `send`/`broadcast` coordination, nor for memory persistence.
 
 ## 45. SOP-INC — Incidents
 
