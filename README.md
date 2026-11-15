@@ -6,6 +6,8 @@
 
 <div align="center">
 
+  <img src="assert/maple-readme-banner.png" alt="maple — RAM-efficient, multi-session TUI coding agent" width="720" />
+
   <h1>maple</h1>
 
   <p>
