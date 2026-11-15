@@ -226,6 +226,9 @@ Keybindings:
 | `j` / `k` | hub | move the roster selection |
 | `t` | hub | toggle tree (lineage rails) |
 | `/` | hub | filter the roster |
+| `a` | hub (Agents) | ask the selected peer — compose a message into its transcript |
+| `Tab` | hub | switch Agents / Activity |
+| `Enter` | hub (Activity) | open the session that produced the selected entry |
 | `Esc` | hub | close the hub |
 | `/` | normal | command palette (`/resume`, `/new`, `/fork`, `/hub`) |
 | `n` | normal | start a new independent session |

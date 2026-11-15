@@ -1,12 +1,14 @@
 //! omp-parity surface tests: hub chrome, roster rows, tree rails, picker, roster scan.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use maple::session::store::Store;
+use maple::session::store::{new_entry_id, now_rfc3339, Store};
+use maple::session::types::SessionEntry;
 use maple::tui::app::App;
 use maple::tui::hub::frame::HubFrame;
 use maple::tui::hub::row;
 use maple::tui::hub::roster::{self, Peer, Status};
 use maple::tui::picker::Picker;
+use ratatui::backend::TestBackend;
 use ratatui::text::Line;
 
 fn key(code: KeyCode) -> KeyEvent {
@@ -17,6 +19,7 @@ fn peer(id: &str, title: Option<&str>, parent: Option<&str>) -> Peer {
     Peer {
         session_id: id.to_string(),
         title: title.map(str::to_string),
+        path: std::path::PathBuf::from("/tmp/maple-peer.jsonl"),
         cwd: "/work/maple".to_string(),
         model: "test-model".to_string(),
         status: Status::Active,
@@ -174,7 +177,9 @@ fn roster_scan_aggregates_usage_task_and_tool() {
         )
         .unwrap();
 
-    let peers = roster::scan(&store);
+    let scanned = roster::scan(&store);
+    let peers = scanned.peers;
+    let activity = scanned.activity;
     let found = peers.iter().find(|peer| peer.session_id == id).expect("session in roster");
     assert_eq!(found.requests, 1);
     assert_eq!(found.tools, 1);
@@ -182,6 +187,115 @@ fn roster_scan_aggregates_usage_task_and_tool() {
     assert!((found.cost - 0.25).abs() < 1e-9);
     assert_eq!(found.task, "do the thing");
     assert_eq!(found.tool, "bash");
+    assert_eq!(found.path, file.path);
+    let feed = activity
+        .iter()
+        .find(|item| item.session_id == id)
+        .expect("entry in activity feed");
+    assert_eq!(feed.kind, "usage");
+    assert!(feed.text.contains("100 tok"));
+    let _ = std::fs::remove_dir_all(&home);
+}
 
+fn screen_of(terminal: &ratatui::Terminal<TestBackend>, width: u16, height: u16) -> String {
+    let buffer = terminal.backend().buffer();
+    let mut screen = String::new();
+    for y in 0..height {
+        for x in 0..width {
+            screen.push_str(buffer[(x, y)].symbol());
+        }
+        screen.push('\n');
+    }
+    screen
+}
+
+#[test]
+fn ask_appends_message_to_peer_transcript() {
+    let mut home = std::env::temp_dir();
+    home.push(format!("maple-ask-{}", uuid::Uuid::now_v7()));
+    std::fs::create_dir_all(&home).unwrap();
+    let store = Store::with_home(home.clone(), "/work/maple");
+    let peer_file = store.create(Some("peer session")).unwrap();
+    let me = store.create(Some("my session")).unwrap();
+    store
+        .append(
+            &peer_file.path,
+            &SessionEntry::new(
+                "message",
+                new_entry_id(),
+                None,
+                now_rfc3339(),
+                serde_json::json!({ "text": "peer says hi" }),
+            ),
+        )
+        .unwrap();
+
+    let my_id = me.header.id.clone();
+    let mut app = App::new(store, me, "test-model".to_string());
+    app.toggle_hub();
+    let index = app
+        .hub
+        .roster
+        .iter()
+        .position(|peer| peer.session_id == peer_file.header.id)
+        .expect("peer in roster");
+    for _ in 0..index {
+        app.handle_key(key(KeyCode::Char('j')));
+    }
+    app.handle_key(key(KeyCode::Char('a')));
+    assert!(app.hub.ask.is_some(), "ask form opens");
+    for c in "hello peer".chars() {
+        app.handle_key(key(KeyCode::Char(c)));
+    }
+    app.handle_key(key(KeyCode::Enter));
+    assert!(app.hub.ask.is_none(), "ask form closes on send");
+
+    let store = Store::with_home(home.clone(), "/work/maple");
+    let (_, entries) = store.load(&peer_file.path).unwrap();
+    let sent = entries
+        .iter()
+        .find(|entry| entry.payload.get("text").and_then(|v| v.as_str()) == Some("hello peer"))
+        .expect("message delivered to peer transcript");
+    assert_eq!(
+        sent.payload.get("from").and_then(|v| v.as_str()),
+        Some(my_id.as_str())
+    );
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn activity_tab_lists_recent_entries() {
+    let mut home = std::env::temp_dir();
+    home.push(format!("maple-activity-{}", uuid::Uuid::now_v7()));
+    std::fs::create_dir_all(&home).unwrap();
+    let store = Store::with_home(home.clone(), "/work/maple");
+    let file = store.create(Some("activity session")).unwrap();
+    store
+        .append(
+            &file.path,
+            &SessionEntry::new(
+                "message",
+                new_entry_id(),
+                None,
+                now_rfc3339(),
+                serde_json::json!({ "text": "recent work item" }),
+            ),
+        )
+        .unwrap();
+
+    let mut app = App::new(store, file, "test-model".to_string());
+    app.toggle_hub();
+    assert!(
+        !app.hub.activity.is_empty(),
+        "activity feed populated from the scan"
+    );
+    app.handle_key(key(KeyCode::Tab));
+    assert_eq!(app.hub.tab, maple::tui::nav::Tab::Activity);
+
+    let mut terminal = ratatui::Terminal::new(TestBackend::new(120, 30)).unwrap();
+    terminal.draw(|f| maple::tui::render::draw(f, &mut app)).unwrap();
+    let screen = screen_of(&terminal, 120, 30);
+    assert!(screen.contains("recent work item"), "feed row missing:\n{screen}");
+    assert!(screen.contains("[ Activity ]"), "chips missing:\n{screen}");
     let _ = std::fs::remove_dir_all(&home);
 }

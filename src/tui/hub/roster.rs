@@ -4,9 +4,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::session::store::{SessionFile, Store};
 use crate::session::types::SessionEntry;
+use super::row::short_id;
 
 /// Bound on roster scans so a large session directory cannot stall the TUI.
 pub const MAX_PEERS: usize = 200;
+/// Entries per session kept in the Activity feed.
+pub const MAX_ACTIVITY_PER_SESSION: usize = 6;
+/// Global cap on the Activity feed.
+pub const MAX_ACTIVITY: usize = 200;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -31,6 +36,7 @@ impl Status {
 pub struct Peer {
     pub session_id: String,
     pub title: Option<String>,
+    pub path: std::path::PathBuf,
     pub cwd: String,
     pub model: String,
     pub status: Status,
@@ -45,6 +51,25 @@ pub struct Peer {
     pub registered_at: String,
     /// File modification age in milliseconds; drives the `age` column.
     pub age_ms: u128,
+}
+
+/// One recent transcript entry, flattened for the hub Activity feed.
+#[derive(Debug, Clone)]
+pub struct Activity {
+    pub session_id: String,
+    pub title: String,
+    pub path: std::path::PathBuf,
+    pub kind: String,
+    pub text: String,
+    pub timestamp: String,
+    pub model: String,
+}
+
+/// Roster scan result: peer rows plus the recent-entry feed.
+#[derive(Debug, Default)]
+pub struct Roster {
+    pub peers: Vec<Peer>,
+    pub activity: Vec<Activity>,
 }
 
 /// Aggregate one transcript into a peer row.
@@ -113,6 +138,7 @@ pub fn peer_from(file: &SessionFile, entries: &[SessionEntry], now_ms: u128) -> 
     Peer {
         session_id: file.header.id.clone(),
         title: file.header.title.clone(),
+        path: file.path.clone(),
         cwd: file.header.cwd.clone(),
         model: if model.is_empty() { "unknown".to_string() } else { model },
         status,
@@ -129,17 +155,75 @@ pub fn peer_from(file: &SessionFile, entries: &[SessionEntry], now_ms: u128) -> 
     }
 }
 
-/// Scan the session directory into roster rows, newest first.
-pub fn scan(store: &Store) -> Vec<Peer> {
+/// Scan the session directory into peer rows plus a recent-entry feed.
+pub fn scan(store: &Store) -> Roster {
     let now_ms = now_ms();
     let mut peers = Vec::new();
+    let mut activity = Vec::new();
     for file in store.list_files().unwrap_or_default().into_iter().take(MAX_PEERS) {
         let Ok((_, entries)) = store.load(&file.path) else {
             continue;
         };
-        peers.push(peer_from(&file, &entries, now_ms));
+        let peer = peer_from(&file, &entries, now_ms);
+        for entry in entries.iter().rev().take(MAX_ACTIVITY_PER_SESSION) {
+            activity.push(Activity {
+                session_id: peer.session_id.clone(),
+                title: peer
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| short_id(&peer.session_id).to_string()),
+                path: peer.path.clone(),
+                kind: entry.kind.clone(),
+                text: entry_text(entry),
+                timestamp: entry.timestamp.clone(),
+                model: peer.model.clone(),
+            });
+        }
+        peers.push(peer);
     }
-    peers
+    activity.sort_by_key(|item| std::cmp::Reverse(parse_ms(&item.timestamp).unwrap_or(0)));
+    activity.truncate(MAX_ACTIVITY);
+    Roster { peers, activity }
+}
+
+/// Compact single-line text for an entry, used by the Activity feed.
+fn entry_text(entry: &SessionEntry) -> String {
+    match entry.kind.as_str() {
+        "message" => single_line(
+            entry
+                .payload
+                .get("text")
+                .and_then(|value| value.as_str())
+                .unwrap_or(""),
+        ),
+        "usage" => {
+            let cost = entry
+                .payload
+                .get("cost")
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0);
+            let tokens = entry
+                .payload
+                .get("tokens")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0);
+            let tool = entry
+                .payload
+                .get("tool")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
+            single_line(&format!("${cost:.4} · {tokens} tok{tool}"))
+        }
+        "tool" => single_line(
+            entry
+                .payload
+                .get("name")
+                .or_else(|| entry.payload.get("tool"))
+                .and_then(|value| value.as_str())
+                .unwrap_or("tool"),
+        ),
+        _ => single_line(&entry.kind),
+    }
 }
 
 fn modified_age_ms(path: &std::path::Path, now_ms: u128) -> u128 {

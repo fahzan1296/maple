@@ -2,7 +2,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::session::store::{new_entry_id, now_rfc3339, SessionFile, Store};
 use crate::session::types::SessionEntry;
-use crate::tui::hub::roster::{self, Peer};
+use crate::tui::hub::row::short_id;
+use crate::tui::hub::render::filtered;
+use crate::tui::hub::roster::{self, Activity, Peer};
+use crate::tui::nav::Tab;
 use crate::tui::picker::Picker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -11,25 +14,40 @@ pub enum Mode {
     Input,
 }
 
-/// Agent-hub overlay state (roster, selection, filter, tree).
+/// Ask form: compose a message into another peer's transcript.
+pub struct AskForm {
+    pub peer_id: String,
+    pub peer_title: String,
+    pub buffer: String,
+}
+
+/// Agent-hub overlay state (roster, activity feed, selection, filter, tree, ask).
 pub struct HubState {
     pub visible: bool,
+    pub tab: Tab,
     pub selected: usize,
+    pub activity_selected: usize,
     pub filter: String,
     pub filter_editing: bool,
     pub tree: bool,
     pub roster: Vec<Peer>,
+    pub activity: Vec<Activity>,
+    pub ask: Option<AskForm>,
 }
 
 impl HubState {
     fn new() -> Self {
         Self {
             visible: false,
+            tab: Tab::Agents,
             selected: 0,
+            activity_selected: 0,
             filter: String::new(),
             filter_editing: false,
             tree: false,
             roster: Vec::new(),
+            activity: Vec::new(),
+            ask: None,
         }
     }
 }
@@ -122,9 +140,13 @@ impl App {
     }
 
     fn refresh_roster(&mut self) {
-        self.hub.roster = roster::scan(&self.store);
+        let roster = roster::scan(&self.store);
+        self.hub.roster = roster.peers;
+        self.hub.activity = roster.activity;
         let len = self.hub.roster.len();
         self.hub.selected = self.hub.selected.min(len.saturating_sub(1));
+        let activity = self.hub.activity.len();
+        self.hub.activity_selected = self.hub.activity_selected.min(activity.saturating_sub(1));
         let current = self.file.header.id.clone();
         if let Some(peer) = self.hub.roster.iter_mut().find(|peer| peer.session_id == current) {
             peer.model = self.model.clone();
@@ -151,6 +173,10 @@ impl App {
             if let Some(path) = self.picker.handle_key(key) {
                 self.resume(path);
             }
+            return;
+        }
+        if self.hub.ask.is_some() {
+            self.handle_ask_key(key);
             return;
         }
         if self.hub.filter_editing {
@@ -199,26 +225,139 @@ impl App {
     }
 
     fn handle_hub_key(&mut self, key: KeyEvent) {
-        let len = self.hub.roster.len();
         match key.code {
             KeyCode::Esc => self.hub.visible = false,
             KeyCode::Char('q') => self.should_quit = true,
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.hub.selected = (self.hub.selected + 1).min(len.saturating_sub(1));
+            KeyCode::Tab => {
+                self.hub.tab = self.hub.tab.other();
                 self.refresh_roster();
             }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.hub.selected = self.hub.selected.saturating_sub(1);
-                self.refresh_roster();
-            }
+            KeyCode::Char('j') | KeyCode::Down => self.move_selection(1),
+            KeyCode::Char('k') | KeyCode::Up => self.move_selection(-1),
             KeyCode::Char('t') => self.hub.tree = !self.hub.tree,
+            KeyCode::Char('a') => self.open_ask(),
             KeyCode::Char('/') => {
                 self.hub.filter_editing = true;
                 self.hub.filter.clear();
             }
-            KeyCode::Enter => self.hub.filter_editing = false,
+            KeyCode::Enter => {
+                if self.hub.filter_editing {
+                    self.hub.filter_editing = false;
+                } else if self.hub.tab == Tab::Activity {
+                    self.open_activity_session();
+                }
+            }
             _ => {}
         }
+    }
+
+    fn move_selection(&mut self, delta: i64) {
+        if self.hub.tab == Tab::Activity {
+            let len = self.filtered_activity().len();
+            let next = self.hub.activity_selected as i64 + delta;
+            self.hub.activity_selected = next.clamp(0, len.saturating_sub(1) as i64) as usize;
+            return;
+        }
+        let len = filtered(&self.hub.roster, &self.hub.filter).len();
+        let next = self.hub.selected as i64 + delta;
+        self.hub.selected = next.clamp(0, len.saturating_sub(1) as i64) as usize;
+        self.refresh_roster();
+    }
+
+    /// Activity rows visible under the current filter, newest first.
+    pub fn filtered_activity(&self) -> Vec<&Activity> {
+        let needle = self.hub.filter.trim().to_ascii_lowercase();
+        self.hub
+            .activity
+            .iter()
+            .filter(|item| {
+                needle.is_empty()
+                    || format!("{} {} {}", item.title, item.session_id, item.text)
+                        .to_ascii_lowercase()
+                        .contains(&needle)
+            })
+            .collect()
+    }
+
+    /// Open the ask form addressed to the selected peer.
+    fn open_ask(&mut self) {
+        let Some(peer) = filtered(&self.hub.roster, &self.hub.filter)
+            .get(self.hub.selected)
+            .map(|peer| (*peer).clone())
+        else {
+            return;
+        };
+        let title = peer
+            .title
+            .clone()
+            .unwrap_or_else(|| short_id(&peer.session_id).to_string());
+        self.hub.ask = Some(AskForm {
+            peer_id: peer.session_id,
+            peer_title: title,
+            buffer: String::new(),
+        });
+    }
+
+    fn handle_ask_key(&mut self, key: KeyEvent) {
+        let Some(form) = self.hub.ask.as_mut() else {
+            return;
+        };
+        match key.code {
+            KeyCode::Esc => self.hub.ask = None,
+            KeyCode::Enter => {
+                let text = form.buffer.trim().to_string();
+                if text.is_empty() {
+                    return;
+                }
+                let peer_id = form.peer_id.clone();
+                self.deliver_ask(&peer_id, text);
+                self.hub.ask = None;
+            }
+            KeyCode::Backspace => {
+                form.buffer.pop();
+            }
+            KeyCode::Char(c) => form.buffer.push(c),
+            _ => {}
+        }
+    }
+
+    /// Append the message to the peer's transcript and refresh the feed.
+    fn deliver_ask(&mut self, peer_id: &str, text: String) {
+        let Some(peer) = self.hub.roster.iter().find(|peer| peer.session_id == peer_id) else {
+            self.status = "ask error: peer vanished".to_string();
+            return;
+        };
+        let path = peer.path.clone();
+        let from = self.file.header.id.clone();
+        let entry = SessionEntry::new(
+            "message",
+            new_entry_id(),
+            None,
+            now_rfc3339(),
+            serde_json::json!({ "text": text, "from": from }),
+        );
+        match self.store.append(&path, &entry) {
+            Ok(()) => {
+                self.refresh_roster();
+                self.status = format!("asked {}", short_id(peer_id));
+            }
+            Err(err) => self.status = format!("ask error: {err}"),
+        }
+    }
+
+    /// Jump to the session that produced the selected activity row.
+    fn open_activity_session(&mut self) {
+        let Some(item) = self
+            .filtered_activity()
+            .get(self.hub.activity_selected)
+            .map(|item| (*item).clone())
+        else {
+            return;
+        };
+        let path = item.path.clone();
+        self.hub.visible = false;
+        self.hub.filter.clear();
+        self.resume(path);
     }
 
     fn handle_filter_key(&mut self, key: KeyEvent) {
@@ -231,10 +370,12 @@ impl App {
             KeyCode::Backspace => {
                 self.hub.filter.pop();
                 self.hub.selected = 0;
+                self.hub.activity_selected = 0;
             }
             KeyCode::Char(c) => {
                 self.hub.filter.push(c);
                 self.hub.selected = 0;
+                self.hub.activity_selected = 0;
             }
             _ => {}
         }

@@ -29,6 +29,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     if app.hub.visible {
         draw_hub(f, app, chunks[0]);
+        if let Some(form) = &app.hub.ask {
+            super::hub::render::draw_ask(f, form, chunks[0]);
+        }
     } else {
         draw_transcript(f, app, chunks[0]);
     }

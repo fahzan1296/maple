@@ -35,8 +35,12 @@ All notable changes to this project are documented here. The format follows
   stem/id, list ordering, blob addressing, lease contention, bounded scan.
 - `tests/tui_render.rs` — asserts the rendered buffer contains the transcript,
   composer, statusline, and message text.
-- `tests/tui_parity.rs` — 6 tests: hub frame chrome, roster rows (wide/compact
-  metrics), tree branches, age labels, picker filter/select, roster aggregation.
+- `tests/tui_parity.rs` — 8 tests: hub chrome, roster rows, tree branches, age
+  labels, picker, roster scan/activity, ask delivery, activity tab render.
+- Hub Activity tab: recent transcript entries across sessions (bounded feed,
+  filter, Enter jumps to the source session) and the `a` ask form, which delivers
+  a message into the selected peer's transcript with a `from` marker.
+- Statusline now surfaces the last status/error message (append, resume, ask).
 
 ### Changed
 

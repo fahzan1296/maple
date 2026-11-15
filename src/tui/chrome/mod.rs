@@ -53,10 +53,12 @@ pub fn draw_statusline(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)])
         .split(area);
     let hint = theme::truncate(hints, usize::from(chunks[0].width));
-    f.render_widget(
-        Paragraph::new(Line::from(theme::span(hint, Tone::Dim))),
-        chunks[0],
-    );
+    let left = if app.status.is_empty() {
+        theme::span(hint, Tone::Dim)
+    } else {
+        theme::span(theme::truncate(&app.status, usize::from(chunks[0].width)), Tone::Accent)
+    };
+    f.render_widget(Paragraph::new(Line::from(left)), chunks[0]);
     let peers = format!("({} peers)", app.hub.roster.len());
     let rest = format!(" · {} · {}", app.model, app.cwd());
     let right_line = Line::from(vec![
