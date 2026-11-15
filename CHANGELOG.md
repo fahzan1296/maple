@@ -68,6 +68,9 @@ All notable changes to this project are documented here. The format follows
   `fmt`/`clippy` when those tools are installed.
 - CI enforces `KONTRAK.md` §SOP-RESLIM: `timeout-minutes` per job and step,
   sized-runner justification, and 7-day artifact retention.
+- Apps slice #2: `apps::debug::terminal_info` (terminal capability snapshot and
+  the debug-menu report) plus `CellDimensions` in maple-tui
+  (`cell_dimensions` / `set_cell_dimensions`).
 
 ### Changed
 
