@@ -1,69 +1,58 @@
-//! Frame furniture: composer box and omp-style statusline.
+//! Composer and status line rendering for the main view.
 
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
+use maple_tui::text_shape::{truncate_to_width, Ellipsis};
 
 use crate::tui::theme::{self, Tone};
 
-use super::app::{App, Mode};
+use super::app::App;
 
-/// Session id short form (`short(id)` in omp rows).
-pub fn short(id: &str) -> &str {
-    id.get(..8).unwrap_or(id)
+pub const COMPOSER_CAPACITY: usize = 2_000;
+
+pub fn short(session_id: &str) -> String {
+    session_id.chars().take(8).collect()
 }
 
-pub fn draw_input(f: &mut Frame, app: &App, area: Rect) {
-    let title = match app.mode {
-        Mode::Input => " input  (Enter send · Esc cancel)",
-        Mode::Normal => " input  (i edit)",
-    };
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(title)
-        .border_style(match app.mode {
-            Mode::Input => Style::default().fg(Tone::Success.color()),
-            Mode::Normal => Style::default().fg(Tone::Border.color()),
-        });
-    let text = if app.input.is_empty() {
-        Line::from(Span::styled("type a message…", theme::fg(Tone::Dim)))
-    } else if app.hub.filter_editing {
-        Line::from(theme::span(format!("/{}", app.hub.filter), Tone::Accent))
-    } else {
-        Line::from(app.input.clone())
-    };
-    f.render_widget(Paragraph::new(text).block(block), area);
-}
-
-pub fn draw_statusline(f: &mut Frame, app: &App, area: Rect) {
-    let right = format!(
-        "({} peers) · {} · {}",
-        app.hub.roster.len(),
-        app.model,
-        app.cwd()
+/// Three composer rows: top border with mode, buffer with caret,
+/// bottom border.
+pub fn composer_rows(app: &App, width: u16) -> Vec<String> {
+    let top = format!("╭─ {} ", app.mode.label());
+    let buffer = theme::span(format!("{} ▍", app.input), Tone::Accent);
+    let suffix = theme::span(
+        format!("  {}/{}", app.input.chars().count(), COMPOSER_CAPACITY),
+        Tone::Muted,
     );
-    let hints = match app.mode {
-        Mode::Input => super::nav::input_hints(),
-        Mode::Normal if app.hub.visible => super::nav::hub_hints(),
-        Mode::Normal => super::nav::normal_hints(),
-    };
-    let right_width = (theme::visible_width(&right) as u16 + 2).min(area.width);
-    let chunks = Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)])
-        .split(area);
-    let hint = theme::truncate(hints, usize::from(chunks[0].width));
-    let left = if app.status.is_empty() {
-        theme::span(hint, Tone::Dim)
+    let pad = usize::from(width)
+        .saturating_sub(2 + theme::visible_width(&buffer) + theme::visible_width(&suffix));
+    let middle = format!("│  {buffer}{suffix}{}", " ".repeat(pad));
+    let bottom = format!("╰{}", "─".repeat(usize::from(width).saturating_sub(2)));
+    vec![
+        truncate_to_width(&top, usize::from(width), Ellipsis::Omit),
+        truncate_to_width(&middle, usize::from(width), Ellipsis::Omit),
+        truncate_to_width(&bottom, usize::from(width), Ellipsis::Omit),
+    ]
+}
+
+/// Bottom status strip: position, overlay markers, model, status.
+pub fn statusline_row(app: &App, width: u16) -> String {
+    let entries = app.entries.len();
+    let index = (app.scroll as usize).min(entries.saturating_sub(1));
+    let position = if entries == 0 {
+        "0/0".to_string()
     } else {
-        theme::span(theme::truncate(&app.status, usize::from(chunks[0].width)), Tone::Accent)
+        format!("{}/{}", index + 1, entries)
     };
-    f.render_widget(Paragraph::new(Line::from(left)), chunks[0]);
-    let peers = format!("({} peers)", app.hub.roster.len());
-    let rest = format!(" · {} · {}", app.model, app.cwd());
-    let right_line = Line::from(vec![
-        theme::span(peers, Tone::Accent),
-        theme::span(rest, Tone::Muted),
-    ]);
-    f.render_widget(Paragraph::new(right_line), chunks[1]);
+    let mut segments = vec![format!(" {position}")];
+    if !app.model.is_empty() {
+        segments.push(theme::span(format!("  {}", app.model), Tone::Muted));
+    }
+    if app.hub.visible {
+        segments.push(" [Hub]".to_string());
+    }
+    if app.picker.visible {
+        segments.push(" [Picker]".to_string());
+    }
+    if !app.status.is_empty() {
+        segments.push(theme::span(format!("  {}", app.status), Tone::Dim));
+    }
+    truncate_to_width(&segments.join(""), usize::from(width), Ellipsis::Omit)
 }

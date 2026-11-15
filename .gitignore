@@ -1,6 +1,9 @@
 # Reference material (reading only, not part of the product)
+l/
 oh-my-pi/
 pi-messenger/
+# Tool indexes (machine-local)
+.codegraph/
 
 # pi-messenger mesh state (local, ephemeral)
 .pi/

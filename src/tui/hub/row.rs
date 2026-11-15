@@ -1,7 +1,6 @@
 //! Roster row layout: identity, task, metrics, and tree rails.
 
-use ratatui::style::{Color, Style};
-use ratatui::text::Line;
+use maple_tui::style::{Color, Style};
 
 use crate::tui::glyph;
 use crate::tui::nav;
@@ -71,7 +70,11 @@ pub fn age_label(age_ms: u128) -> String {
 pub fn metric_columns(peer: &Peer, age: &str) -> String {
     [
         cell(&format_cost(peer.cost), 8, false),
-        cell(&format_metric_duration(peer.duration_ms).unwrap_or_else(|| "—".to_string()), 13, true),
+        cell(
+            &format_metric_duration(peer.duration_ms).unwrap_or_else(|| "—".to_string()),
+            13,
+            true,
+        ),
         cell(&format!("{} req", format_number(peer.requests)), 8, true),
         cell(&format!("{} tools", format_number(peer.tools)), 9, true),
         cell(&format!("{} tok", format_number(peer.tokens)), 8, true),
@@ -149,7 +152,7 @@ pub fn entry_rows(
     selected: bool,
     width: usize,
     branch: Option<&str>,
-) -> Vec<Line<'static>> {
+) -> Vec<String> {
     let rail = branch.unwrap_or("  ");
     let cursor = if selected { glyph::CURSOR } else { " " };
     let label = peer
@@ -190,12 +193,17 @@ pub fn entry_rows(
     ]
 }
 
-fn row_line(text: String, width: usize, selected: bool, tone: Tone) -> Line<'static> {
+fn row_line(text: String, width: usize, selected: bool, tone: Tone) -> String {
     let fitted = theme::fit(&text, width);
     if selected {
-        Line::styled(fitted, Style::default().bg(SELECTED_BG).fg(tone.color()))
+        Style {
+            fg: Some(tone.color()),
+            bg: Some(SELECTED_BG),
+            ..Style::default()
+        }
+        .paint(&fitted)
     } else {
-        Line::styled(fitted, Style::default().fg(tone.color()))
+        tone.style().paint(&fitted)
     }
 }
 
@@ -248,7 +256,11 @@ pub fn tree_branches(peers: &[Peer]) -> std::collections::HashMap<String, String
                 glyph::TREE_BRANCH
             });
         }
-        let prefix = if prefix.is_empty() { "  ".to_string() } else { prefix };
+        let prefix = if prefix.is_empty() {
+            "  ".to_string()
+        } else {
+            prefix
+        };
         out.insert(peer.session_id.clone(), prefix);
     }
     out

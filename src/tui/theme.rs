@@ -1,7 +1,7 @@
-//! Color tokens, text measurement, and span helpers.
+//! Color tokens and text shaping helpers backed by `maple-tui`.
 
-use ratatui::style::{Color, Style};
-use ratatui::text::Span;
+use maple_tui::style::{Color, Style};
+use maple_tui::text_shape::{pad_to_width, truncate_to_width, Ellipsis};
 
 /// Semantic colors shared by every surface (transcript, hub, picker, statusline).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,41 +29,33 @@ impl Tone {
             Tone::Reset => Color::Reset,
         }
     }
+
+    /// Style that paints text in this tone.
+    pub fn style(self) -> Style {
+        if matches!(self, Tone::Reset) {
+            Style::default()
+        } else {
+            Style::fg(self.color())
+        }
+    }
 }
 
-pub fn fg(tone: Tone) -> Style {
-    Style::default().fg(tone.color())
+/// Paint `text` in `tone`, closing the style afterwards.
+pub fn span(text: impl Into<String>, tone: Tone) -> String {
+    tone.style().paint(&text.into())
 }
 
-pub fn span(text: impl Into<String>, tone: Tone) -> Span<'static> {
-    Span::styled(text.into(), fg(tone))
-}
-
-/// Display width of a string; the box/nav glyphs used here are single width.
+/// Display width of a string, ignoring ANSI escapes.
 pub fn visible_width(text: &str) -> usize {
-    text.chars().count()
+    maple_tui::text_shape::visible_width(text)
 }
 
 /// Truncate to `width` columns, marking the cut with an ellipsis.
 pub fn truncate(text: &str, width: usize) -> String {
-    if visible_width(text) <= width {
-        return text.to_string();
-    }
-    if width == 0 {
-        return String::new();
-    }
-    let mut out: String = text.chars().take(width.saturating_sub(1)).collect();
-    out.push('…');
-    out
+    truncate_to_width(text, width, Ellipsis::Unicode)
 }
 
 /// Pad or truncate to exactly `width` columns.
 pub fn fit(text: &str, width: usize) -> String {
-    let text = truncate(text, width);
-    let len = visible_width(&text);
-    if len < width {
-        format!("{text}{}", " ".repeat(width - len))
-    } else {
-        text
-    }
+    pad_to_width(&truncate(text, width), width)
 }

@@ -4,12 +4,15 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
-description = "RAM-efficient multi-session TUI coding agent"
+description = "ai coding agent"
 publish = false
 
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
 [dependencies]
-ratatui = "0.29"
-crossterm = "0.28"
+maple-tui = { path = "crates/maple-tui" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"

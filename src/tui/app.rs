@@ -1,4 +1,5 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use maple_tui::Key;
+
 
 use crate::session::store::{new_entry_id, now_rfc3339, SessionFile, Store};
 use crate::session::types::SessionEntry;
@@ -12,6 +13,15 @@ use crate::tui::picker::Picker;
 pub enum Mode {
     Normal,
     Input,
+}
+
+impl Mode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Mode::Normal => "normal",
+            Mode::Input => "input",
+        }
+    }
 }
 
 /// Ask form: compose a message into another peer's transcript.
@@ -164,8 +174,8 @@ impl App {
         }
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) {
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+    pub fn handle_key(&mut self, key: Key) {
+        if matches!(key, Key::Ctrl('c')) {
             self.should_quit = true;
             return;
         }
@@ -188,9 +198,9 @@ impl App {
             return;
         }
         match self.mode {
-            Mode::Input => match key.code {
-                KeyCode::Esc => self.mode = Mode::Normal,
-                KeyCode::Enter => {
+            Mode::Input => match key {
+                Key::Esc => self.mode = Mode::Normal,
+                Key::Enter => {
                     if self.input.starts_with('/') {
                         self.run_command();
                     } else {
@@ -198,22 +208,37 @@ impl App {
                     }
                     self.mode = Mode::Normal;
                 }
-                KeyCode::Backspace => {
+                Key::Backspace => {
                     self.input.pop();
                 }
-                KeyCode::Char(c) => self.input.push(c),
+                Key::Char(c) => self.input.push(c),
                 _ => {}
             },
-            Mode::Normal => match key.code {
-                KeyCode::Char('q') => self.should_quit = true,
-                KeyCode::Char('i') => self.mode = Mode::Input,
-                KeyCode::Char('n') => self.new_session(),
-                KeyCode::Char('f') => self.fork_session(),
-                KeyCode::Char('h') => self.toggle_hub(),
-                KeyCode::Char('j') => self.scroll = self.scroll.saturating_add(1),
-                KeyCode::Char('k') => self.scroll = self.scroll.saturating_sub(1),
+            Mode::Normal => match key {
+                Key::Char('q') => self.should_quit = true,
+                Key::Char('i') => self.mode = Mode::Input,
+                Key::Char('n') => self.new_session(),
+                Key::Char('f') => self.fork_session(),
+                Key::Char('h') => self.toggle_hub(),
+                Key::Char('j') => self.scroll = self.scroll.saturating_add(1),
+                Key::Char('k') => self.scroll = self.scroll.saturating_sub(1),
                 _ => {}
             },
+        }
+    }
+
+    /// Bracketed paste: treat as literal text in the focused editor.
+    pub fn handle_paste(&mut self, text: &str) {
+        if self.picker.visible {
+            self.picker.query_push_str(text);
+        } else if let Some(form) = self.hub.ask.as_mut() {
+            form.buffer.push_str(text);
+        } else if self.hub.filter_editing {
+            self.hub.filter.push_str(text);
+            self.hub.selected = 0;
+            self.hub.activity_selected = 0;
+        } else if self.mode == Mode::Input {
+            self.input.push_str(text);
         }
     }
 
@@ -224,23 +249,23 @@ impl App {
         }
     }
 
-    fn handle_hub_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => self.hub.visible = false,
-            KeyCode::Char('q') => self.should_quit = true,
-            KeyCode::Tab => {
+    fn handle_hub_key(&mut self, key: Key) {
+        match key {
+            Key::Esc => self.hub.visible = false,
+            Key::Char('q') => self.should_quit = true,
+            Key::Tab => {
                 self.hub.tab = self.hub.tab.other();
                 self.refresh_roster();
             }
-            KeyCode::Char('j') | KeyCode::Down => self.move_selection(1),
-            KeyCode::Char('k') | KeyCode::Up => self.move_selection(-1),
-            KeyCode::Char('t') => self.hub.tree = !self.hub.tree,
-            KeyCode::Char('a') => self.open_ask(),
-            KeyCode::Char('/') => {
+            Key::Char('j') | Key::Down => self.move_selection(1),
+            Key::Char('k') | Key::Up => self.move_selection(-1),
+            Key::Char('t') => self.hub.tree = !self.hub.tree,
+            Key::Char('a') => self.open_ask(),
+            Key::Char('/') => {
                 self.hub.filter_editing = true;
                 self.hub.filter.clear();
             }
-            KeyCode::Enter => {
+            Key::Enter => {
                 if self.hub.filter_editing {
                     self.hub.filter_editing = false;
                 } else if self.hub.tab == Tab::Activity {
@@ -298,13 +323,13 @@ impl App {
         });
     }
 
-    fn handle_ask_key(&mut self, key: KeyEvent) {
+    fn handle_ask_key(&mut self, key: Key) {
         let Some(form) = self.hub.ask.as_mut() else {
             return;
         };
-        match key.code {
-            KeyCode::Esc => self.hub.ask = None,
-            KeyCode::Enter => {
+        match key {
+            Key::Esc => self.hub.ask = None,
+            Key::Enter => {
                 let text = form.buffer.trim().to_string();
                 if text.is_empty() {
                     return;
@@ -313,10 +338,10 @@ impl App {
                 self.deliver_ask(&peer_id, text);
                 self.hub.ask = None;
             }
-            KeyCode::Backspace => {
+            Key::Backspace => {
                 form.buffer.pop();
             }
-            KeyCode::Char(c) => form.buffer.push(c),
+            Key::Char(c) => form.buffer.push(c),
             _ => {}
         }
     }
@@ -360,19 +385,19 @@ impl App {
         self.resume(path);
     }
 
-    fn handle_filter_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => {
+    fn handle_filter_key(&mut self, key: Key) {
+        match key {
+            Key::Esc => {
                 self.hub.filter_editing = false;
                 self.hub.filter.clear();
             }
-            KeyCode::Enter => self.hub.filter_editing = false,
-            KeyCode::Backspace => {
+            Key::Enter => self.hub.filter_editing = false,
+            Key::Backspace => {
                 self.hub.filter.pop();
                 self.hub.selected = 0;
                 self.hub.activity_selected = 0;
             }
-            KeyCode::Char(c) => {
+            Key::Char(c) => {
                 self.hub.filter.push(c);
                 self.hub.selected = 0;
                 self.hub.activity_selected = 0;

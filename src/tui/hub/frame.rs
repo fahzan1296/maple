@@ -1,10 +1,8 @@
 //! Hub frame chrome: split top border, divider, bottom border, chip strip.
 
-use ratatui::style::Style;
-use ratatui::text::{Line, Span};
-
 use crate::tui::nav;
 use crate::tui::theme::{self, Tone};
+use maple_tui::style::Style;
 
 use super::row::{short_id, SELECTED_BG};
 use super::roster::Peer;
@@ -18,6 +16,7 @@ pub struct HubFrame {
     sidebar_min: u16,
     sidebar_max: u16,
 }
+
 impl HubFrame {
     pub fn new(title: &str, sidebar_min: u16, sidebar_max: u16) -> Self {
         Self {
@@ -27,7 +26,6 @@ impl HubFrame {
         }
     }
 
-    /// Measured sidebar width: longest identity plus metrics padding.
     pub fn sidebar_width(&self, peers: &[Peer]) -> u16 {
         let longest = peers
             .iter()
@@ -45,24 +43,24 @@ impl HubFrame {
     }
 
     /// `╭─ Agent Hub ──────────────┬──────────────╮`
-    pub fn top(&self, width: u16, sidebar: u16) -> Line<'static> {
+    pub fn top(&self, width: u16, sidebar: u16) -> String {
         border(width, sidebar, '╭', '┬', '╮', Some(&self.title))
     }
 
     /// `├──────────────────────────┴──────────────┤`
-    pub fn divider(&self, width: u16, sidebar: u16) -> Line<'static> {
+    pub fn divider(&self, width: u16, sidebar: u16) -> String {
         border(width, sidebar, '├', '┴', '┤', None)
     }
 
     /// `╰─────────────────────────────────────────╯`
-    pub fn bottom(&self, width: u16, sidebar: u16) -> Line<'static> {
+    pub fn bottom(&self, width: u16, sidebar: u16) -> String {
         let _ = sidebar;
         border(width, 0, '╰', '─', '╯', None)
     }
 
     /// `  [ Agents ]  Activity`
-    pub fn chips(&self, width: u16, labels: &[&str], selected: usize) -> Line<'static> {
-        let mut spans = vec![Span::raw("  ")];
+    pub fn chips(&self, width: u16, labels: &[&str], selected: usize) -> String {
+        let mut out = String::from("  ");
         let mut used = 2usize;
         for (index, label) in labels.iter().enumerate() {
             let text = nav::chip(label, index == selected);
@@ -71,18 +69,22 @@ impl HubFrame {
                 break;
             }
             if index == selected {
-                spans.push(Span::styled(
-                    theme::fit(&text, text_width),
-                    Style::default().bg(SELECTED_BG).fg(Tone::Accent.color()),
-                ));
+                out.push_str(
+                    &Style {
+                        fg: Some(Tone::Accent.color()),
+                        bg: Some(SELECTED_BG),
+                        ..Style::default()
+                    }
+                    .paint(&text),
+                );
             } else {
-                spans.push(theme::span(text, Tone::Muted));
+                out.push_str(&theme::span(text, Tone::Muted));
             }
             used += text_width;
-            spans.push(Span::raw("  "));
+            out.push_str("  ");
             used += 2;
         }
-        Line::from(spans)
+        out
     }
 }
 
@@ -94,7 +96,7 @@ fn border(
     mid: char,
     right: char,
     title: Option<&str>,
-) -> Line<'static> {
+) -> String {
     let width = usize::from(width.max(4));
     let mid_at = (usize::from(sidebar) + 1).min(width - 2);
     let mut cells: Vec<char> = vec!['─'; width];
@@ -102,7 +104,8 @@ fn border(
     cells[mid_at] = mid;
     cells[width - 1] = right;
 
-    let mut spans: Vec<Span<'static>> = Vec::new();
+    let border_style = Tone::Border.style();
+    let mut out = String::new();
     let mut cursor = 0usize;
     if let Some(title) = title {
         let start = 3usize;
@@ -112,20 +115,14 @@ fn border(
             if end < width {
                 cells[end] = ' ';
             }
-            let title = title.chars().take(end - start).collect::<String>();
-            spans.push(border_span(&cells[..start]));
-            spans.push(theme::span(title, Tone::Accent));
+            let title: String = title.chars().take(end - start).collect();
+            out.push_str(&border_style.paint(&cells[..start].iter().collect::<String>()));
+            out.push_str(&theme::span(title, Tone::Accent));
             cursor = end;
         }
     }
     if cursor < width {
-        spans.push(border_span(&cells[cursor..]));
+        out.push_str(&border_style.paint(&cells[cursor..].iter().collect::<String>()));
     }
-    Line::from(spans)
+    out
 }
-
-fn border_span(cells: &[char]) -> Span<'static> {
-    let text: String = cells.iter().collect();
-    Span::styled(text, Style::default().fg(Tone::Border.color()))
-}
-

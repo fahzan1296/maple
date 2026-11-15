@@ -1,70 +1,88 @@
 //! Frame layout: transcript (or hub), composer, statusline.
 
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
+use maple_tui::text_shape::wrap_text_with_ansi;
 
 use super::app::App;
-use super::chrome::{draw_input, draw_statusline, short};
-use super::hub::render::draw_hub;
+use super::chrome::{self, short};
+use super::hub::render;
 use crate::session::types::SessionEntry;
 use crate::tui::theme::{self, Tone};
 
 /// Transcript rows kept in the render buffer (bounded, like the session scan).
 const TRANSCRIPT_BUDGET: usize = 500;
 
-pub fn draw(f: &mut Frame, app: &mut App) {
+/// Full frame as one string per terminal row.
+pub fn render_rows(app: &mut App, width: u16, height: u16) -> Vec<String> {
     if app.picker.visible {
-        app.picker.render(f, f.area());
-        return;
+        return app.picker.rows(width, height);
     }
-    let chunks = Layout::vertical([
-        Constraint::Min(3),
-        Constraint::Length(3),
-        Constraint::Length(1),
-    ])
-    .split(f.area());
-
-    if app.hub.visible {
-        draw_hub(f, app, chunks[0]);
+    let transcript_height = height.saturating_sub(4);
+    let body = if app.hub.visible {
+        let mut rows = render::hub_rows(app, width, transcript_height);
         if let Some(form) = &app.hub.ask {
-            super::hub::render::draw_ask(f, form, chunks[0]);
+            rows = render::ask_rows(form, width, transcript_height);
         }
+        rows
     } else {
-        draw_transcript(f, app, chunks[0]);
+        transcript_rows(app, width, transcript_height)
+    };
+    let mut out = Vec::with_capacity(usize::from(height));
+    out.extend(body);
+    out.extend(chrome::composer_rows(app, width));
+    out.push(chrome::statusline_row(app, width));
+    out.truncate(usize::from(height));
+    while out.len() < usize::from(height) {
+        out.push(" ".repeat(usize::from(width)));
     }
-    draw_input(f, app, chunks[1]);
-    draw_statusline(f, app, chunks[2]);
+    out
 }
 
-fn draw_transcript(f: &mut Frame, app: &App, area: Rect) {
+fn transcript_rows(app: &App, width: u16, height: u16) -> Vec<String> {
+    let inner = usize::from(width).saturating_sub(2);
     let start = app.entries.len().saturating_sub(TRANSCRIPT_BUDGET);
-    let mut lines: Vec<Line<'static>> = Vec::new();
+    let mut content: Vec<String> = Vec::new();
     for entry in &app.entries[start..] {
-        lines.push(Line::from(vec![
+        let line = format!(
+            "{}  {:<8} {}",
             theme::span(
                 entry.timestamp.get(..19).unwrap_or(&entry.timestamp).to_string(),
                 Tone::Dim,
             ),
-            Span::raw("  "),
-            theme::span(format!("{:<8}", entry.kind), kind_tone(&entry.kind)),
-            Span::raw(" "),
-            Span::raw(summary(entry)),
-        ]));
+            theme::span(entry.kind.clone(), kind_tone(&entry.kind)),
+            summary(entry),
+        );
+        for wrapped in wrap_text_with_ansi(&line, inner.max(1)) {
+            content.push(wrapped);
+        }
     }
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(format!(" maple · {} ", short(app.session_id())))
-        .border_style(Style::default().fg(Tone::Border.color()));
-    f.render_widget(
-        Paragraph::new(lines)
-            .block(block)
-            .wrap(Wrap { trim: false })
-            .scroll((app.scroll, 0)),
-        area,
-    );
+    let view_start = (app.scroll as usize).min(content.len());
+    let visible = &content[view_start..];
+
+    let mut rows = vec![top_border(
+        width,
+        &format!(" maple · {} ", short(app.session_id())),
+    )];
+    rows.push(format!("│{}│", " ".repeat(inner)));
+    for line in visible {
+        rows.push(format!("│{}│", theme::fit(line, inner)));
+    }
+    while rows.len() < height as usize - 1 {
+        rows.push(format!("│{}│", " ".repeat(inner)));
+    }
+    rows.push(bottom_border(width));
+    rows.truncate(height as usize);
+    rows
+}
+
+fn top_border(width: u16, title: &str) -> String {
+    let inner = usize::from(width).saturating_sub(2);
+    let title_width = theme::visible_width(title);
+    let dashes = inner.saturating_sub(title_width);
+    format!("╭{}{}╮", title, "─".repeat(dashes))
+}
+
+fn bottom_border(width: u16) -> String {
+    format!("╰{}╯", "─".repeat(usize::from(width).saturating_sub(2)))
 }
 
 fn kind_tone(kind: &str) -> Tone {

@@ -2,12 +2,9 @@
 
 use std::path::PathBuf;
 
-use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::Rect;
-use ratatui::style::Style;
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::Frame;
+use maple_tui::style::Style;
+use maple_tui::text_shape::{truncate_to_width, Ellipsis};
+use maple_tui::Key;
 
 use crate::session::store::Store;
 use crate::tui::nav;
@@ -35,6 +32,7 @@ impl Picker {
         Self {
             visible: false,
             items: Vec::new(),
+
             query: String::new(),
             selected: 0,
         }
@@ -67,6 +65,11 @@ impl Picker {
         self.visible = false;
     }
 
+    pub fn query_push_str(&mut self, text: &str) {
+        self.query.push_str(text);
+        self.selected = 0;
+    }
+
     pub fn filtered(&self) -> Vec<&PickerItem> {
         let needle = self.query.trim().to_ascii_lowercase();
         if needle.is_empty() {
@@ -83,10 +86,10 @@ impl Picker {
     }
 
     /// Handle a key; returns the chosen session path on Enter.
-    pub fn handle_key(&mut self, key: KeyEvent) -> Option<PathBuf> {
-        match key.code {
-            KeyCode::Esc => self.close(),
-            KeyCode::Enter => {
+    pub fn handle_key(&mut self, key: Key) -> Option<PathBuf> {
+        match key {
+            Key::Esc => self.close(),
+            Key::Enter => {
                 let path = self
                     .filtered()
                     .get(self.selected)
@@ -96,20 +99,20 @@ impl Picker {
                 }
                 return path;
             }
-            KeyCode::Backspace => {
+            Key::Backspace => {
                 self.query.pop();
                 self.selected = 0;
             }
-            KeyCode::Up | KeyCode::Char('k') => {
+            Key::Up | Key::Char('k') => {
                 self.selected = self.selected.saturating_sub(1);
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            Key::Down | Key::Char('j') => {
                 let len = self.filtered().len();
                 if len > 0 {
                     self.selected = (self.selected + 1).min(len - 1);
                 }
             }
-            KeyCode::Char(c) => {
+            Key::Char(c) => {
                 self.query.push(c);
                 self.selected = 0;
             }
@@ -118,61 +121,88 @@ impl Picker {
         None
     }
 
-    pub fn render(&self, f: &mut Frame, area: Rect) {
-        let width = area.width * 3 / 5;
-        let height = area.height * 3 / 4;
-        let rect = Rect::new(
-            area.x + area.width.saturating_sub(width) / 2,
-            area.y + area.height.saturating_sub(height) / 2,
-            width,
-            height,
-        );
-        f.render_widget(Clear, rect);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(" Resume session ")
-            .border_style(Style::default().fg(Tone::Border.color()));
-        let inner = block.inner(rect);
-        f.render_widget(block, rect);
+    /// Render the centered resume-session dialog into string rows.
+    pub fn rows(&self, width: u16, height: u16) -> Vec<String> {
+        let box_width = width * 3 / 5;
+        let box_height = height * 3 / 4;
+        let x = usize::from(width.saturating_sub(box_width) / 2);
+        let y = usize::from(height.saturating_sub(box_height) / 2);
+        let inner = usize::from(box_width).saturating_sub(2);
 
-        let list_height = usize::from(inner.height).saturating_sub(1);
+        let mut canvas = vec![" ".repeat(usize::from(width)); usize::from(height)];
         let items = self.filtered();
-        let scroll = self.selected.saturating_sub(list_height.saturating_sub(1));
-        let list_area = Rect::new(inner.x, inner.y, inner.width, list_height as u16);
-        let selected_path = items.get(self.selected).map(|item| item.path.clone()).unwrap_or_default();
-        let mut lines: Vec<Line<'static>> = Vec::new();
+        let list_height = usize::from(box_height).saturating_sub(2);
+        let scroll = self
+            .selected
+            .saturating_sub(list_height.saturating_sub(1));
+        let selected_path = items
+            .get(self.selected)
+            .map(|item| item.path.clone())
+            .unwrap_or_default();
+
+        let mut rows = vec![top_border(box_width)];
+        rows.push(format!("│{}│", " ".repeat(inner)));
         for item in items.iter().skip(scroll).take(list_height) {
             let is_selected = item.path == selected_path;
             let text = format!(
                 "{} {}  {}  {}",
                 if is_selected { super::glyph::CURSOR } else { " " },
-                theme::truncate(&item.title, usize::from(inner.width).saturating_sub(28)),
+                theme::truncate(&item.title, inner.saturating_sub(28)),
                 theme::truncate(&item.cwd, 18),
                 item.timestamp.get(..16).unwrap_or(""),
             );
+            let fitted = theme::fit(&text, inner);
             if is_selected {
-                lines.push(Line::styled(
-                    theme::fit(&text, usize::from(inner.width)),
-                    Style::default().bg(SELECTED_BG).fg(Tone::Accent.color()),
+                rows.push(format!(
+                    "│{}│",
+                    Style {
+                        fg: Some(Tone::Accent.color()),
+                        bg: Some(SELECTED_BG),
+                        ..Style::default()
+                    }
+                    .paint(&fitted)
                 ));
             } else {
-                lines.push(Line::from(text));
+                rows.push(format!("│{fitted}│"));
             }
         }
-        f.render_widget(Paragraph::new(lines), list_area);
-
-        let footer = Line::from(vec![
+        while rows.len() < box_height as usize - 1 {
+            rows.push(format!("│{}│", " ".repeat(inner)));
+        }
+        let footer = format!(
+            "{}{}  ·  {}",
             theme::span(format!(" /{}", self.query), Tone::Accent),
-            theme::span("  ·  ".to_string(), Tone::Muted),
+            " ".repeat(inner.saturating_sub(
+                2 + self.query.chars().count() + 6 + nav::picker_hints().chars().count()
+            )),
             theme::span(nav::picker_hints().to_string(), Tone::Dim),
-        ]);
-        let footer_area = Rect::new(
-            inner.x,
-            inner.y + list_height as u16,
-            inner.width,
-            1,
         );
-        f.render_widget(Paragraph::new(footer), footer_area);
+        rows.push(format!("│{}│", theme::fit(&footer, inner)));
+        rows.push(bottom_border(box_width));
+
+        for (offset, line) in rows.into_iter().enumerate() {
+            let row = y + offset;
+            if row >= canvas.len() {
+                break;
+            }
+            let prefix = truncate_to_width(&canvas[row], x, Ellipsis::Omit);
+            let mut joined = prefix.clone();
+            joined.push_str(&line);
+            let used = theme::visible_width(&prefix) + theme::visible_width(&line);
+            let total = theme::visible_width(&canvas[row]);
+            if used < total {
+                joined.push_str(&" ".repeat(total - used));
+            }
+            canvas[row] = truncate_to_width(&joined, total, Ellipsis::Omit);
+        }
+        canvas
     }
 }
 
+fn top_border(width: u16) -> String {
+    format!("╭─ Resume session {}╮", "─".repeat(usize::from(width).saturating_sub(19)))
+}
+
+fn bottom_border(width: u16) -> String {
+    format!("╰{}╯", "─".repeat(usize::from(width).saturating_sub(2)))
+}

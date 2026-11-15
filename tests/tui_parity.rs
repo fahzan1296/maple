@@ -1,18 +1,34 @@
 //! omp-parity surface tests: hub chrome, roster rows, tree rails, picker, roster scan.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use maple::session::store::{new_entry_id, now_rfc3339, Store};
+use maple_tui::text_shape::visible_width;
+
 use maple::session::types::SessionEntry;
 use maple::tui::app::App;
-use maple::tui::hub::frame::HubFrame;
+use maple::tui::app::AskForm;
 use maple::tui::hub::row;
+use maple::tui::hub::frame::HubFrame;
 use maple::tui::hub::roster::{self, Peer, Status};
 use maple::tui::picker::Picker;
-use ratatui::backend::TestBackend;
-use ratatui::text::Line;
+use maple_tui::Key;
+use maple::tui::render;
 
-fn key(code: KeyCode) -> KeyEvent {
-    KeyEvent::new(code, KeyModifiers::NONE)
+/// Strip SGR escape sequences so assertions read rendered text.
+fn plain(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for next in chars.by_ref() {
+                if next == 'm' {
+                    break;
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn peer(id: &str, title: Option<&str>, parent: Option<&str>) -> Peer {
@@ -36,16 +52,12 @@ fn peer(id: &str, title: Option<&str>, parent: Option<&str>) -> Peer {
     }
 }
 
-fn concat(line: &Line<'_>) -> String {
-    line.spans.iter().map(|span| span.content.as_ref()).collect()
-}
-
 #[test]
 fn hub_frame_draws_split_borders_and_chips() {
     let frame = HubFrame::new("Agent Hub", 30, 46);
-    let top = concat(&frame.top(100, 32));
-    let divider = concat(&frame.divider(100, 32));
-    let bottom = concat(&frame.bottom(100, 32));
+    let top = plain(&frame.top(100, 32));
+    let divider = plain(&frame.divider(100, 32));
+    let bottom = plain(&frame.bottom(100, 32));
 
     for needle in ["╭", "┬", "╮", "Agent Hub"] {
         assert!(top.contains(needle), "top border missing {needle:?}: {top:?}");
@@ -57,7 +69,7 @@ fn hub_frame_draws_split_borders_and_chips() {
         assert!(bottom.contains(needle), "bottom missing {needle:?}: {bottom:?}");
     }
 
-    let chips = concat(&frame.chips(60, &["Agents", "Activity"], 0));
+    let chips = plain(&frame.chips(60, &["Agents", "Activity"], 0));
     assert!(chips.contains("[ Agents ]"), "chips: {chips:?}");
     assert!(chips.contains("Activity"), "chips: {chips:?}");
 }
@@ -67,7 +79,7 @@ fn entry_rows_render_identity_task_metrics_and_compact_variant() {
     let sample = peer("01a1de64-91f0-75a2", Some("hub ui"), None);
     let rows = row::entry_rows(&sample, true, 100, None);
     assert_eq!(rows.len(), 3, "one identity, one task, one metrics row");
-    let flat: Vec<String> = rows.iter().map(concat).collect();
+    let flat: Vec<String> = rows.iter().map(|row| plain(row)).collect();
     let joined = flat.join("\n");
     assert!(flat[0].contains('❯'), "selected cursor: {}", flat[0]);
     assert!(flat[0].contains("01a1de64"), "identity: {}", flat[0]);
@@ -77,7 +89,7 @@ fn entry_rows_render_identity_task_metrics_and_compact_variant() {
 
     let narrow = row::entry_rows(&sample, false, 40, None)
         .iter()
-        .map(concat)
+        .map(|row| plain(row))
         .collect::<Vec<_>>()
         .join("\n");
     assert!(narrow.contains(" · "), "compact metrics use dot separators: {narrow}");
@@ -119,12 +131,12 @@ fn picker_filters_and_selects_newest_match() {
     picker.open(&store);
     assert_eq!(picker.filtered().len(), 2);
 
-    picker.handle_key(key(KeyCode::Char('b')));
-    picker.handle_key(key(KeyCode::Char('e')));
-    picker.handle_key(key(KeyCode::Char('t')));
+    picker.handle_key(Key::Char('b'));
+    picker.handle_key(Key::Char('e'));
+    picker.handle_key(Key::Char('t'));
     assert_eq!(picker.filtered().len(), 1, "query 'bet' matches only beta");
 
-    let chosen = picker.handle_key(key(KeyCode::Enter));
+    let chosen = picker.handle_key(Key::Enter);
     assert!(chosen.is_some(), "Enter returns the selected session path");
     assert!(!picker.visible, "selection closes the picker");
 
@@ -143,11 +155,11 @@ fn roster_scan_aggregates_usage_task_and_tool() {
     store
         .append(
             &file.path,
-            &maple::session::types::SessionEntry::new(
+            &SessionEntry::new(
                 "message",
-                maple::session::store::new_entry_id(),
+                new_entry_id(),
                 None,
-                maple::session::store::now_rfc3339(),
+                now_rfc3339(),
                 serde_json::json!({ "text": "do the thing" }),
             ),
         )
@@ -155,11 +167,11 @@ fn roster_scan_aggregates_usage_task_and_tool() {
     store
         .append(
             &file.path,
-            &maple::session::types::SessionEntry::new(
+            &SessionEntry::new(
                 "tool",
-                maple::session::store::new_entry_id(),
+                new_entry_id(),
                 None,
-                maple::session::store::now_rfc3339(),
+                now_rfc3339(),
                 serde_json::json!({ "name": "bash" }),
             ),
         )
@@ -167,11 +179,11 @@ fn roster_scan_aggregates_usage_task_and_tool() {
     store
         .append(
             &file.path,
-            &maple::session::types::SessionEntry::new(
+            &SessionEntry::new(
                 "usage",
-                maple::session::store::new_entry_id(),
+                new_entry_id(),
                 None,
-                maple::session::store::now_rfc3339(),
+                now_rfc3339(),
                 serde_json::json!({ "cost": 0.25, "tokens": 100 }),
             ),
         )
@@ -180,7 +192,10 @@ fn roster_scan_aggregates_usage_task_and_tool() {
     let scanned = roster::scan(&store);
     let peers = scanned.peers;
     let activity = scanned.activity;
-    let found = peers.iter().find(|peer| peer.session_id == id).expect("session in roster");
+    let found = peers
+        .iter()
+        .find(|peer| peer.session_id == id)
+        .expect("session in roster");
     assert_eq!(found.requests, 1);
     assert_eq!(found.tools, 1);
     assert_eq!(found.tokens, 100);
@@ -195,18 +210,6 @@ fn roster_scan_aggregates_usage_task_and_tool() {
     assert_eq!(feed.kind, "usage");
     assert!(feed.text.contains("100 tok"));
     let _ = std::fs::remove_dir_all(&home);
-}
-
-fn screen_of(terminal: &ratatui::Terminal<TestBackend>, width: u16, height: u16) -> String {
-    let buffer = terminal.backend().buffer();
-    let mut screen = String::new();
-    for y in 0..height {
-        for x in 0..width {
-            screen.push_str(buffer[(x, y)].symbol());
-        }
-        screen.push('\n');
-    }
-    screen
 }
 
 #[test]
@@ -240,14 +243,14 @@ fn ask_appends_message_to_peer_transcript() {
         .position(|peer| peer.session_id == peer_file.header.id)
         .expect("peer in roster");
     for _ in 0..index {
-        app.handle_key(key(KeyCode::Char('j')));
+        app.handle_key(Key::Char('j'));
     }
-    app.handle_key(key(KeyCode::Char('a')));
+    app.handle_key(Key::Char('a'));
     assert!(app.hub.ask.is_some(), "ask form opens");
     for c in "hello peer".chars() {
-        app.handle_key(key(KeyCode::Char(c)));
+        app.handle_key(Key::Char(c));
     }
-    app.handle_key(key(KeyCode::Enter));
+    app.handle_key(Key::Enter);
     assert!(app.hub.ask.is_none(), "ask form closes on send");
 
     let store = Store::with_home(home.clone(), "/work/maple");
@@ -289,13 +292,62 @@ fn activity_tab_lists_recent_entries() {
         !app.hub.activity.is_empty(),
         "activity feed populated from the scan"
     );
-    app.handle_key(key(KeyCode::Tab));
+    app.handle_key(Key::Tab);
     assert_eq!(app.hub.tab, maple::tui::nav::Tab::Activity);
 
-    let mut terminal = ratatui::Terminal::new(TestBackend::new(120, 30)).unwrap();
-    terminal.draw(|f| maple::tui::render::draw(f, &mut app)).unwrap();
-    let screen = screen_of(&terminal, 120, 30);
+    let screen: String = maple::tui::render::render_rows(&mut app, 120, 30)
+        .iter()
+        .map(|row| plain(row))
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(screen.contains("recent work item"), "feed row missing:\n{screen}");
     assert!(screen.contains("[ Activity ]"), "chips missing:\n{screen}");
     let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn overlays_fill_the_frame_without_overflowing_width() {
+    let mut home = std::env::temp_dir();
+    home.push(format!("maple-overlays-{}", uuid::Uuid::now_v7()));
+    std::fs::create_dir_all(&home).unwrap();
+    let store = Store::with_home(home.clone(), "/work/maple");
+    let file = store.create(Some("overlay session")).unwrap();
+
+    let mut app = App::new(store, file, "test-model".to_string());
+    app.picker.open(&app_store(&home));
+    let rows = render::render_rows(&mut app, 60, 18);
+    assert_eq!(rows.len(), 18, "picker fills the frame height");
+    for row in &rows {
+        assert!(
+            visible_width(row) <= 60,
+            "picker row overflows: {:?}",
+            plain(row)
+        );
+    }
+    app.picker.close();
+
+    app.toggle_hub();
+    app.hub.ask = Some(AskForm {
+        peer_id: "peer-1".to_string(),
+        peer_title: "peer one".to_string(),
+        buffer: "hello".to_string(),
+    });
+    let rows = render::render_rows(&mut app, 60, 18);
+    assert_eq!(rows.len(), 18, "ask fills the frame height");
+    for row in &rows {
+        assert!(
+            visible_width(row) <= 60,
+            "ask row overflows: {:?}",
+            plain(row)
+        );
+    }
+    let screen = rows.iter().map(|row| plain(row)).collect::<Vec<_>>().join("\n");
+    assert!(screen.contains("Ask"), "ask title missing:\n{screen}");
+    assert!(screen.contains("peer one"), "ask peer missing:\n{screen}");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+fn app_store(home: &std::path::Path) -> Store {
+    Store::with_home(home.to_path_buf(), "/work/maple")
 }

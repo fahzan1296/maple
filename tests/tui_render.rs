@@ -2,8 +2,32 @@ use maple::session::store::{new_entry_id, now_rfc3339, Store};
 use maple::session::types::SessionEntry;
 use maple::tui::app::App;
 use maple::tui::render;
-use ratatui::backend::TestBackend;
-use ratatui::Terminal;
+
+/// Strip SGR escape sequences so assertions read rendered text.
+fn plain(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for next in chars.by_ref() {
+                if next == 'm' {
+                    break;
+                }
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+fn screen_of(app: &mut App, width: u16, height: u16) -> String {
+    render::render_rows(app, width, height)
+        .iter()
+        .map(|row| plain(row))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 #[test]
 fn renderer_draws_transcript_composer_and_statusline() {
@@ -27,11 +51,8 @@ fn renderer_draws_transcript_composer_and_statusline() {
         .unwrap();
 
     let mut app = App::new(store, file, "test-model".to_string());
-    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-    terminal.draw(|f| render::draw(f, &mut app)).unwrap();
-
-    let screen = screen_of(&terminal, 80, 24);
-    for needle in ["maple ·", "hello tui", "message", "type a message…", "test-model"] {
+    let screen = screen_of(&mut app, 80, 24);
+    for needle in ["maple ·", "hello tui", "message", "test-model"] {
         assert!(screen.contains(needle), "missing {needle:?} in:\n{screen}");
     }
     let _ = std::fs::remove_dir_all(&home);
@@ -60,10 +81,7 @@ fn hub_panel_lists_peers_and_inspector() {
 
     let mut app = App::new(store, file, "test-model".to_string());
     app.toggle_hub();
-    let mut terminal = Terminal::new(TestBackend::new(120, 24)).unwrap();
-    terminal.draw(|f| render::draw(f, &mut app)).unwrap();
-
-    let screen = screen_of(&terminal, 120, 24);
+    let screen = screen_of(&mut app, 120, 24);
     for needle in [
         "Agent Hub",
         "model",
@@ -80,16 +98,4 @@ fn hub_panel_lists_peers_and_inspector() {
     }
 
     let _ = std::fs::remove_dir_all(&home);
-}
-
-fn screen_of(terminal: &Terminal<TestBackend>, width: u16, height: u16) -> String {
-    let buffer = terminal.backend().buffer();
-    let mut screen = String::new();
-    for y in 0..height {
-        for x in 0..width {
-            screen.push_str(buffer[(x, y)].symbol());
-        }
-        screen.push('\n');
-    }
-    screen
 }
