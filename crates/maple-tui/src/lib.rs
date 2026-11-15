@@ -57,6 +57,7 @@ pub mod terminal_capabilities;
 
 
 pub use component::Component;
+pub use ansi_scan::strip_ansi;
 pub use keys::Key;
 pub use terminal::{process::ProcessTerminal, virt::VirtualTerminal, Terminal, TtyEvent};
 pub use text_shape::{wrap_text_with_ansi, Ellipsis};

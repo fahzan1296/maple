@@ -51,6 +51,17 @@ All notable changes to this project are documented here. The format follows
 - Triage labels: `priority: high|medium|low`, `status: triage|in-progress|
   blocked|needs-review`, `component: session|tui|mesh|resource-guard|hashline|
   autolearn|crew`, plus `security` and `performance`.
+- `.github/workflows/ci.yml` — CI on pushes to `master` and on pull requests:
+  build plus tests on Ubuntu and macOS (`CARGO_BUILD_JOBS=2`,
+  `--test-threads=2`) and a clippy pass. Windows stays out of scope for v0.1
+  (PRD §15).
+- `.github/workflows/release.yml` — a `v*` tag builds release tarballs for
+  `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` and opens a draft
+  GitHub release with both artifacts.
+- Apps slice #1 (`src/apps/`): `apps::git::avatar` (deterministic mirrored 5x5
+  identicon, SHA-256 digest) and `apps::debug::log_formatting` (sanitized,
+  wrapped log rows; RFC 3339 and offset-less ISO-8601 timestamps; finite pid).
+  `maple-tui` now re-exports `ansi_scan::strip_ansi`.
 
 ### Changed
 
