@@ -159,6 +159,16 @@ impl Store {
         Ok(out)
     }
 
+    /// Headers with their paths, newest first (roster scan).
+    pub fn list_files(&self) -> Result<Vec<SessionFile>> {
+        let mut out = Vec::new();
+        for file in self.session_files()? {
+            out.push(SessionFile { header: read_header(&file)?, path: file });
+        }
+        out.sort_by(|a, b| b.header.timestamp.cmp(&a.header.timestamp));
+        Ok(out)
+    }
+
     /// Bounded read: header always; whole file when small, tail only when large.
     pub fn load(&self, path: &Path) -> Result<(SessionHeader, Vec<SessionEntry>)> {
         let len = fs::metadata(path)?.len();
