@@ -5,5 +5,6 @@
 //! be exercised directly.
 
 pub mod debug;
+pub mod autoresearch_data;
 pub mod git;
 pub mod ps_data;

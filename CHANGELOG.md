@@ -83,6 +83,12 @@ All notable changes to this project are documented here. The format follows
   flags and uptime cells, `table_cells` aligned with `TABLE_HEADER`,
   `scope_header`), with the daemon state types declared in-module until the
   daemon port lands.
+- Apps slice #6: `apps::autoresearch_data` — experiment baseline selection
+  (`format_elapsed`, `is_better`, `current_results`, `find_baseline_result`,
+  `find_baseline_metric`, `find_baseline_run_number`,
+  `find_baseline_secondary`) plus the `ExperimentResult` / `MetricDef` /
+  `MetricDirection` / `AsiValue` types, declared in-module until the
+  `tools/autoresearch` port lands.
 
 ### Changed
 
