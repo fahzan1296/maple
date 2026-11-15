@@ -19,7 +19,7 @@ All notable changes to this project are documented here. The format follows
 - `docs/adr/0002-resource-guard.md` — design of the runtime resource guard.
 - `KONTRAK.md` — AI Operating Contract v7.0.
 - `Cargo.toml` — pure-Rust crate (`edition = "2021"`), deps: `anyhow`, `clap`,
-  `serde`/`serde_json`, `sha2`, `time`, `uuid`, `libc`, `ratatui`, `crossterm`.
+  `serde`/`serde_json`, `sha2`, `time`, `uuid`, `libc`, `maple-tui` (in-repo).
 - Session core (`src/session/`): JSONL transcript types (`SessionHeader`
   v3, `SessionEntry`, `Identity`), hex-encoded cwd layout under
   `~/.maple/agent/sessions/`, SHA-256 blob spill, bounded scan

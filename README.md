@@ -199,8 +199,7 @@ i edit · h hub · / command · q quit                                          
 <details>
   <summary>Core</summary>
   <ul>
-    <li><a href="https://crates.io/crates/ratatui">ratatui</a> — terminal renderer (differential buffer)</li>
-    <li><a href="https://crates.io/crates/crossterm">crossterm</a> — raw mode + input events</li>
+    <li><code>maple-tui</code> — in-repo terminal renderer: differential buffer, component model, themes, raw-mode input (no ratatui/crossterm)</li>
     <li><a href="https://crates.io/crates/clap">clap</a> — CLI</li>
     <li><a href="https://crates.io/crates/serde">serde</a> / <a href="https://crates.io/crates/serde_json">serde_json</a> — transcript schema</li>
     <li><a href="https://crates.io/crates/sha2">sha2</a> — blob content addressing</li>
