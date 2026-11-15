@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose new behavior or a change to an existing one
+labels: ["enhancement", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing, check [`PRD.md`](https://github.com/Fahzan1296/maple/blob/master/PRD.md) — many ideas are already on the roadmap or explicitly listed as non-goals.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what blocks you?
+      placeholder: I cannot ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: The behavior you want, and (optionally) how it would look in the TUI/CLI.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, other designs, or why they fall short.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: Which PRD section does this touch? Any RAM/CPU/security constraints to respect?
+      placeholder: PRD §7 (mesh), must stay within the per-session memory budget
+  - type: checkboxes
+    id: before-submitting
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: This is not a security vulnerability (those go via SECURITY.md)
+          required: true
