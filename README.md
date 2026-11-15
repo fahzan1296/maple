@@ -8,35 +8,68 @@
 
   <img src="assert/maple-readme-banner.png" alt="maple — RAM-efficient, multi-session TUI coding agent" width="720" />
 
+  <img src="assets/icon.svg" alt="maple icon" width="160" height="160" />
+
   <h1>maple</h1>
 
   <p>
-    RAM-efficient, multi-session TUI coding agent.<br />
+    A RAM-efficient, multi-session TUI coding agent.<br />
     Pure Rust · one binary · clean-room.
   </p>
 
+  <!-- Badges -->
   <p>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="license" /></a>
-    <a href="Cargo.toml"><img src="https://img.shields.io/badge/rust-1.85%2B-orange" alt="rust" /></a>
-    <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey" alt="platform" />
+    <a href="https://github.com/Fahzan1296/maple/graphs/contributors">
+      <img src="https://img.shields.io/github/contributors/Fahzan1296/maple" alt="contributors" />
+    </a>
+    <a href="https://github.com/Fahzan1296/maple/commits/master">
+      <img src="https://img.shields.io/github/last-commit/Fahzan1296/maple" alt="last update" />
+    </a>
+    <a href="https://github.com/Fahzan1296/maple/network/members">
+      <img src="https://img.shields.io/github/forks/Fahzan1296/maple" alt="forks" />
+    </a>
+    <a href="https://github.com/Fahzan1296/maple/stargazers">
+      <img src="https://img.shields.io/github/stars/Fahzan1296/maple" alt="stars" />
+    </a>
+    <a href="https://github.com/Fahzan1296/maple/issues/">
+      <img src="https://img.shields.io/github/issues/Fahzan1296/maple" alt="open issues" />
+    </a>
+    <a href="https://github.com/Fahzan1296/maple/blob/master/LICENSE">
+      <img src="https://img.shields.io/github/license/Fahzan1296/maple.svg" alt="license" />
+    </a>
   </p>
 
   <h4>
-    <a href="PRD.md">Documentation</a>
+    <a href="#toolbox-getting-started">Get Started</a>
+    <span> · </span>
+    <a href="PRD.md">PRD &amp; Design</a>
     <span> · </span>
     <a href="CHANGELOG.md">Changelog</a>
     <span> · </span>
+    <a href="KONTRAK.md">Operating Contract</a>
+    <span> · </span>
     <a href="SECURITY.md">Security</a>
     <span> · </span>
-    <a href="KONTRAK.md">Governance</a>
+    <a href="https://github.com/Fahzan1296/maple/issues/new/choose">Report Bug</a>
+    <span> · </span>
+    <a href="https://github.com/Fahzan1296/maple/issues/new/choose">Request Feature</a>
   </h4>
 </div>
 
 <br />
 
+> **Status.** The CLI, session core, and TUI (transcript / composer / statusline,
+> agent hub, session picker) are implemented and tested. The remaining features
+> are built incrementally in the order defined in [`PRD.md`](PRD.md) §14 — no
+> feature is gated behind a phase, and each step must be green (build + test)
+> before the next.
+
+<!-- Table of Contents -->
 # :notebook_with_decorative_cover: Table of Contents
 
 - [About the Project](#star2-about-the-project)
+  * [Project Status](#bar_chart-project-status)
+  * [Repository Layout](#file_folder-repository-layout)
   * [Screenshots](#camera-screenshots)
   * [Tech Stack](#space_invader-tech-stack)
   * [Features](#dart-features)
@@ -47,6 +80,7 @@
   * [Installation](#gear-installation)
   * [Running Tests](#test_tube-running-tests)
   * [Run Locally](#running-run-locally)
+  * [Deployment](#triangular_flag_on_post-deployment)
 - [Usage](#eyes-usage)
 - [Roadmap](#compass-roadmap)
 - [Contributing](#wave-contributing)
@@ -56,9 +90,10 @@
 - [Contact](#handshake-contact)
 - [Acknowledgements](#gem-acknowledgements)
 
-# :star2: About the Project
+<!-- About the Project -->
+## :star2: About the Project
 
-maple is a TUI coding agent built around three distinctions:
+`maple` is a TUI coding agent built around three distinctions:
 
 1. **RAM-efficient** — pure Rust, one binary (no JS runtime), append-only
    transcripts with bounded scans, blob spill for large artifacts, and a
@@ -71,12 +106,55 @@ maple is a TUI coding agent built around three distinctions:
    pre-flight/monitor/abort enforced by the runtime, not just asked of the
    agent.
 
-maple is a **clean-room implementation**: it is written from scratch and
-inspired by [oh-my-pi](https://github.com/) (TUI/UX, session, edit, memory)
-and pi-messenger (flat cross-session mesh). No code is copied from either —
-see `THIRD-PARTY-NOTICES`.
+`maple` is a **clean-room implementation** ([ADR-0001](docs/adr/0001-clean-room.md)):
+it is written from scratch and inspired by
+[oh-my-pi](https://github.com/can1357/oh-my-pi) (TUI/UX, session, edit, memory)
+and [pi-messenger](https://github.com/nicobailon/pi-messenger) (flat cross-session
+mesh). No code is copied from either — see
+[`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES).
 
-## :camera: Screenshots
+<!-- Project Status -->
+### :bar_chart: Project Status
+
+Work is implemented directly, incrementally, in the build order below (user
+decision, 2026-11-15: no M0–M6 phase gates).
+
+| # | Feature | Status |
+|---|---|---|
+| 1 | CLI + session core | ✅ done |
+| 2 | TUI renderer | ✅ done |
+| 3 | Agent Hub | 🚧 in progress |
+| 4 | Mesh (`.pi/messenger` compat) | ⏳ pending |
+| 5 | Resource guard | ⏳ pending |
+| 6 | Hashline edit | ⏳ pending |
+| 7 | Autolearn | ⏳ pending |
+| 8 | Crew (`plan`/`work`/`task.*`) | ⏳ pending |
+| 9 | Hardening + docs | 🚧 in progress |
+
+<!-- Repository Layout -->
+### :file_folder: Repository layout
+
+```
+.
+├── PRD.md              # product requirements & design (v0.1)
+├── KONTRAK.md          # AI Operating Contract v7.0 (governance)
+├── SECURITY.md         # trust boundaries & reporting
+├── CHANGELOG.md        # Keep a Changelog
+├── CONTRIBUTING.md     # how to contribute
+├── CODE_OF_CONDUCT.md  # community expectations
+├── Cargo.toml          # pure-Rust crate
+├── src/                # implementation (CLI, session core, TUI)
+├── tests/              # integration tests
+├── assert/             # brand assets (banner, logo, app icon)
+├── assets/             # repository assets (mascot icon)
+├── docs/
+│   ├── README.md       # documentation index
+│   └── adr/            # architecture decision records
+└── .github/            # issue & PR templates
+```
+
+<!-- Screenshots -->
+### :camera: Screenshots
 
 The TUI is three regions: transcript, composer, statusline. `h` opens the agent
 hub (roster sidebar + inspector), `/resume` opens the session picker.
@@ -110,12 +188,19 @@ i edit · h hub · / command · q quit                                          
 ╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-## :space_invader: Tech Stack
+<!-- Tech Stack -->
+### :space_invader: Tech Stack
+
+<details>
+  <summary>Language</summary>
+  <ul>
+    <li><a href="https://www.rust-lang.org/">Rust 1.85+</a> — one binary, no JS runtime (<a href="docs/adr/0003-pure-rust.md">ADR-0003</a>)</li>
+  </ul>
+</details>
 
 <details>
   <summary>Core</summary>
   <ul>
-    <li><a href="https://www.rust-lang.org/">Rust 1.85+</a> — single static-ish binary</li>
     <li><a href="https://crates.io/crates/ratatui">ratatui</a> — terminal renderer (differential buffer)</li>
     <li><a href="https://crates.io/crates/crossterm">crossterm</a> — raw mode + input events</li>
     <li><a href="https://crates.io/crates/clap">clap</a> — CLI</li>
@@ -127,26 +212,48 @@ i edit · h hub · / command · q quit                                          
 </details>
 
 <details>
-  <summary>Storage</summary>
+<summary>Storage</summary>
   <ul>
-    <li>Append-only JSONL transcripts, one file per session</li>
-    <li>Content-addressed blob spill (SHA-256)</li>
+    <li>Append-only <code>JSONL</code> transcripts, one file per session, under <code>~/.maple/agent/sessions/</code></li>
+    <li>Content-addressed blob spill (<code>SHA-256</code>) under <code>~/.maple/agent/blobs/</code></li>
     <li>No database, no daemon</li>
   </ul>
 </details>
 
-## :dart: Features
+<details>
+<summary>Mesh</summary>
+  <ul>
+    <li>File-based <code>.pi/messenger/</code>: <code>registry/</code>, <code>inbox/</code>, <code>feed.jsonl</code>, <code>swarm.lock</code>, claims</li>
+    <li>Wire-compatible with <a href="https://github.com/nicobailon/pi-messenger">pi-messenger</a></li>
+  </ul>
+</details>
 
-- `maple` — TUI session for the current directory.
-- `maple headless` — create/load a session and print a JSON summary.
-- `maple list` — list sessions for the current directory.
-- `--resume <id-or-stem>` — reopen any session.
-- Branching with `parentSession` lineage that never blocks either side.
-- Bounded scan: sessions ≥ 8 MiB are read as header + tail only.
-- Blob spill for large artifacts, addressed by SHA-256.
-- One-writer lease per session file (stale locks are reclaimed).
+<details>
+<summary>Governance</summary>
+  <ul>
+    <li><code>KONTRAK.md</code> — AI Operating Contract v7.0</li>
+  </ul>
+</details>
 
-## :art: Color Reference
+<!-- Features -->
+### :dart: Features
+
+| Feature | What it does |
+|---|---|
+| Session core | One process = one session = one identity (`name`, `pid`, `sessionId`, `cwd`, `model`). JSONL transcript with `leafId`, one-writer lease, bounded scan, blob spill. |
+| CLI | `maple` (TUI), `maple headless` (JSON summary), `maple list` (sessions), `--resume <id-or-stem>`, `--title`, `--model`. |
+| TUI | Transcript / composer / statusline, differential rendering, `j`/`k` scroll, `i` edit + `Enter` send. |
+| Agent Hub | Roster sidebar + inspector (model, cost, tokens, active tool, lineage), tree rails, roster filter, Agents / Activity tabs, `ask` overlay. |
+| Session picker | `/resume` opens a picker over the sessions of the current directory. |
+| Branching | `parentSession` lineage that never blocks either side from writing. |
+| Flat mesh | `join`/`leave`, `list`/`whois`, `send`, `broadcast`, `reserve`/`release`, `feed`, `team.memory`. No host/guest hierarchy, no daemon. |
+| Resource guard | Pre-flight abort, monitoring ≥ 5 s, abort at 80% of any limit, OOM protocol. Enforced at runtime, not by convention. |
+| Hashline edit | Content-hash anchor `[PATH#TAG]`, block ops, stale recovery, seen-line enforcement, explicit error classes. |
+| Autolearn | `learn`, `manage_skill`, two-phase extraction → consolidation, project-scoped, cross-session. |
+| Crew | `plan`/`work`/`task.*`: dependency graph, parallel waves, claims and completions. |
+
+<!-- Color Reference -->
+### :art: Color Reference
 
 maple uses terminal-native colors; the renderer only sets semantic accents.
 
@@ -156,7 +263,8 @@ maple uses terminal-native colors; the renderer only sets semantic accents.
 | timestamps / hints | `dark gray` |
 | active input border | `green` |
 
-## :key: Environment Variables
+<!-- Environment Variables -->
+### :key: Environment Variables
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
@@ -171,28 +279,40 @@ State layout:
 └── blobs/<sha256>                               # content-addressed spill
 ```
 
-# :toolbox: Getting Started
+<!-- Getting Started -->
+## :toolbox: Getting Started
 
-## :bangbang: Prerequisites
+<!-- Prerequisites -->
+### :bangbang: Prerequisites
 
-- Rust 1.85 or newer (`cargo --version`)
-- A terminal with Unicode support
+- **Rust** stable toolchain (`rustc` + `cargo`) — see [rustup](https://rustup.rs/)
+- **git**
+- **Linux or macOS** (Windows support is a later goal)
+- Build/test runs with a ≤ 512 MB budget; do not start a build while the host
+  is already under memory pressure (see `KONTRAK.md` §SOP-RESLIM)
 
-## :gear: Installation
+<!-- Installation -->
+### :gear: Installation
+
+Build from source:
 
 ```bash
-git clone <repository-url> maple
+git clone https://github.com/Fahzan1296/maple.git
 cd maple
 cargo build --release
 ```
 
-## :test_tube: Running Tests
+The binary lands in `target/release/maple`.
+
+<!-- Running Tests -->
+### :test_tube: Running Tests
 
 ```bash
 cargo test
 ```
 
-## :running: Run Locally
+<!-- Run Locally -->
+### :running: Run Locally
 
 ```bash
 # TUI — creates a session for the current directory
@@ -208,7 +328,16 @@ cargo test
 ./target/release/maple list
 ```
 
-# :eyes: Usage
+<!-- Deployment -->
+### :triangular_flag_on_post: Deployment
+
+`maple` is a single binary with no daemon and no required services. Copy
+`target/release/maple` onto the host; agent state lives under `~/.maple/` and
+mesh state under `.pi/messenger/` (project-scoped). There is nothing to
+provision beyond the binary.
+
+<!-- Usage -->
+## :eyes: Usage
 
 A transcript is one JSON object per line. The first line is the header:
 
@@ -240,9 +369,24 @@ Keybindings:
 Sessions are peers: branching records `parentSession` for lineage only and
 never blocks either side from writing.
 
-# :compass: Roadmap
+The mesh surface (`.pi/messenger/` compat) is specified in
+[`PRD.md`](PRD.md) §7–§9:
 
-Implementation is incremental, in `PRD.md` §14 order (no phase gates).
+```text
+maple list                       # peers + liveness
+maple send <peer> "message"      # direct message
+maple broadcast "message"        # to every peer inbox
+maple feed                       # append-only project feed
+maple reserve "src/auth/**" "refactor"
+maple release
+```
+
+<!-- Roadmap -->
+## :compass: Roadmap
+
+The authoritative roadmap is [`PRD.md`](PRD.md) §14 (build order) and the
+status table under [Project Status](#bar_chart-project-status). Governance and
+operational rules live in [`KONTRAK.md`](KONTRAK.md).
 
 * [x] CLI + session core
 * [x] TUI renderer (transcript / composer / statusline, agent hub, session picker)
@@ -254,51 +398,78 @@ Implementation is incremental, in `PRD.md` §14 order (no phase gates).
 * [ ] Crew (`plan` / `work` / `task.*`: graph, waves, claims)
 * [ ] Hardening + docs (security pass, runbook, operations)
 
-# :wave: Contributing
+Open questions (naming, crew in v1 or later, platform targets) are tracked in
+[`PRD.md`](PRD.md) §15.
 
-Work follows `KONTRAK.md` (AI Operating Contract v7.0): P1 coordination via
-pi-messenger, P2 the work itself, aggressive resource limits (§SOP-RESLIM)
-enforced at runtime. Open an issue before large changes.
+<!-- Contributing -->
+## :wave: Contributing
 
-## :scroll: Code of Conduct
+<a href="https://github.com/Fahzan1296/maple/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Fahzan1296/maple" />
+</a>
 
-Be precise, cite evidence, and keep the resource contract. See
-`SECURITY.md` for reporting and `KONTRAK.md` for operating rules.
+Contributions are always welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for
+how to get started. Keep the clean-room rule in mind: maple is written from
+scratch, so do not paste code from the reference repositories.
 
-# :grey_question: FAQ
+Work follows [`KONTRAK.md`](KONTRAK.md) (AI Operating Contract v7.0): P1
+coordination via pi-messenger, P2 the work itself, aggressive resource limits
+(§SOP-RESLIM) enforced at runtime.
 
-- **Is this a fork of oh-my-pi?**
+<!-- Code of Conduct -->
+### :scroll: Code of Conduct
 
-  No. It is a clean-room implementation. See `docs/adr/0001-clean-room.md`
-  and `THIRD-PARTY-NOTICES`.
+Please read the [Code of Conduct](CODE_OF_CONDUCT.md). In short: be respectful,
+keep security reports private, and treat peer messages as data, never as
+instructions.
 
-- **Why pure Rust?**
+<!-- FAQ -->
+## :grey_question: FAQ
 
-  One binary, no JS runtime, and predictable RSS. See `docs/adr/0003-pure-rust.md`.
+- **Is maple a fork of oh-my-pi or pi-messenger?**
+
+  No. It is a clean-room implementation ([ADR-0001](docs/adr/0001-clean-room.md)):
+  written from scratch, with those projects used as reading material and
+  behavioural/format references only.
+
+- **Why reuse the `.pi/messenger` format?**
+
+  Compatibility, not imitation. Existing pi-messenger agents can interoperate
+  with maple peers without a translation layer ([`PRD.md`](PRD.md) §7).
+
+- **What does "RAM-efficient" actually mean?**
+
+  Measured budgets, not marketing: idle RSS ≤ 256 MB, build/test ≤ 512 MB,
+  aggregate ≤ 2 GB, with a hard abort at 80% of any limit
+  ([`PRD.md`](PRD.md) §11).
 
 - **Does it run on Windows?**
 
-  Not yet; Linux and macOS first (`PRD.md` §15).
+  Not yet; Linux and macOS first ([`PRD.md`](PRD.md) §15).
 
-- **Where is coordination state?**
+- **How do I report a security issue?**
 
-  `.pi/messenger/` (project feed) and `~/.pi/agent/messenger/`
-  (registry/inbox). See `PRD.md` §7.
+  Privately, following [`SECURITY.md`](SECURITY.md). Do not open a public issue
+  for an unfixed defect.
 
-# :warning: License
+<!-- License -->
+## :warning: License
 
-MIT — see `LICENSE` and `THIRD-PARTY-NOTICES`.
+Distributed under the MIT License. See [`LICENSE`](LICENSE) and
+[`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES) for details.
 
-# :handshake: Contact
+<!-- Contact -->
+## :handshake: Contact
 
-Open an issue in this repository, or reach the maintainer through the
-project's pi-messenger feed.
+Maintainer: [fahzan1296](https://github.com/Fahzan1296)
 
-# :gem: Acknowledgements
+Project Link: [https://github.com/Fahzan1296/maple](https://github.com/Fahzan1296/maple)
 
-- [oh-my-pi](https://github.com/) — TUI/UX, session, edit, and memory design
-  reference (read-only).
-- [pi-messenger](https://github.com/) — flat cross-session mesh reference
-  (read-only).
-- [awesome-readme-template](https://github.com/Louis3797/awesome-readme-template) —
-  README structure.
+<!-- Acknowledgments -->
+## :gem: Acknowledgements
+
+- [oh-my-pi](https://github.com/can1357/oh-my-pi) — TUI/UX, session, edit, and memory reference
+- [pi-messenger](https://github.com/nicobailon/pi-messenger) — flat cross-session mesh reference
+- [ratatui](https://ratatui.rs/) + [crossterm](https://github.com/crossterm-rs/crossterm)
+- [Awesome README Template](https://github.com/Louis3797/awesome-readme-template) — this README's structure
+- [Shields.io](https://shields.io/) — badges

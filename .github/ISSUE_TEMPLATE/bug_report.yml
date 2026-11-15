@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a defect in maple (TUI, mesh, edit, resource guard, autolearn)
+labels: ["bug", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a defect.
+
+        **Security issues do not belong here.** Read [`SECURITY.md`](https://github.com/Fahzan1296/maple/blob/master/SECURITY.md) and report privately.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you observed, and what you expected instead.
+      placeholder: The TUI freezes when ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Exact steps or commands, starting from a clean state.
+      placeholder: |
+        1. `maple --headless`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: maple commit or version, OS, Rust version, model/provider.
+      placeholder: commit 929db9671b, Linux aarch64 (proot), rustc 1.9x, anthropic/...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Relevant excerpt only. Redact secrets before pasting.
+      render: text
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What breaks because of this? Data loss, crash, wrong edit, blocked work?
+  - type: checkboxes
+    id: before-submitting
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I redacted secrets, tokens, and peer data from any logs
+          required: true
+        - label: This is not a security vulnerability (those go via SECURITY.md)
+          required: true
