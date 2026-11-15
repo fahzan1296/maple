@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Repository initialized (`main`), `.gitignore` excluding reference material
+- Repository initialized (`master`), `.gitignore` excluding reference material
   and local mesh/agent state.
 - `LICENSE` (MIT, clean-room) and `THIRD-PARTY-NOTICES` listing oh-my-pi and
   pi-messenger as references only (no code reused).
@@ -41,9 +41,24 @@ All notable changes to this project are documented here. The format follows
   filter, Enter jumps to the source session) and the `a` ask form, which delivers
   a message into the selected peer's transcript with a `from` marker.
 - Statusline now surfaces the last status/error message (append, resume, ask).
+- `CONTRIBUTING.md` — setup, workflow, definition of done, and label taxonomy.
+- `CODE_OF_CONDUCT.md` — community expectations and enforcement.
+- `.github/ISSUE_TEMPLATE/` (bug report, feature request) with a chooser
+  config, and `.github/PULL_REQUEST_TEMPLATE.md`.
+- `docs/README.md` — documentation index (product, governance, ADRs, changelog).
+- Repository metadata: description and topics (`rust`, `tui`, `ratatui`,
+  `coding-agent`, `ai-agent`, `cli`, `terminal`, `multi-agent`, `llm`).
+- Triage labels: `priority: high|medium|low`, `status: triage|in-progress|
+  blocked|needs-review`, `component: session|tui|mesh|resource-guard|hashline|
+  autolearn|crew`, plus `security` and `performance`.
 
 ### Changed
 
+- `README.md` rewritten using the
+  [awesome-readme-template](https://github.com/Louis3797/awesome-readme-template)
+  structure: centered header with badges, table of contents, project status,
+  repository layout, tech stack, features, getting started, usage, roadmap,
+  contributing, FAQ, license, contact, and acknowledgements.
 - `PRD.md` aligned with the clean-room decision (ADR-0001): fork/trim wording
   removed, mesh default `.pi/messenger/`, M0 acceptance restated as a clean-room
   scaffold.
