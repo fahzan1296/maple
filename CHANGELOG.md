@@ -18,6 +18,21 @@ All notable changes to this project are documented here. The format follows
   module inspiration map.
 - `docs/adr/0002-resource-guard.md` — design of the runtime resource guard.
 - `KONTRAK.md` — AI Operating Contract v7.0.
+- `Cargo.toml` — pure-Rust crate (`edition = "2021"`), deps: `anyhow`, `clap`,
+  `serde`/`serde_json`, `sha2`, `time`, `uuid`, `libc`, `ratatui`, `crossterm`.
+- Session core (`src/session/`): JSONL transcript types (`SessionHeader`
+  v3, `SessionEntry`, `Identity`), hex-encoded cwd layout under
+  `~/.maple/agent/sessions/`, SHA-256 blob spill, bounded scan
+  (header + tail over an 8 MiB threshold), one-writer lease, and
+  non-blocking `branch` lineage.
+- CLI (`src/cli.rs`, `src/main.rs`): `maple headless` prints a JSON session
+  summary, `maple list` prints session headers, global `--resume/--title/--model`.
+- TUI (`src/tui/`): header/transcript/input/statusline layout, input mode,
+  `q`/Ctrl-C quit, `n` new session, `j`/`k` scroll, `i` edit + Enter send.
+- `tests/session_store.rs` — 8 tests: roundtrip, branch lineage, open by
+  stem/id, list ordering, blob addressing, lease contention, bounded scan.
+- `tests/tui_render.rs` — asserts the rendered buffer contains the header,
+  cwd, model, transcript, input, and message text.
 
 ### Changed
 
@@ -36,6 +51,8 @@ All notable changes to this project are documented here. The format follows
 
 - No fork: maple is implemented from scratch, inspired by oh-my-pi and
   pi-messenger (user decision, 2026-11-15).
-- M0 build was **not** run at the time of this commit: the host was under a
-  resource abort condition (load average ≈ 18 on 8 cores, swap in use). See
-  `KONTRAK.md` §SOP-RESLIM.3.
+- M0 build and tests **were** run on the host (2026-11-15): `cargo build`
+  and `cargo test` green (9 tests). The host was under memory pressure
+  (swap in use), so the build ran with `-j2`; see `KONTRAK.md` §SOP-RESLIM.3.
+- TUI idle RSS measured at **4.3 MB** (debug build, 80x24 pty), well under
+  the 256 MB budget in `PRD.md` §14 feature 2.

@@ -1,0 +1,25 @@
+[package]
+name = "maple"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "RAM-efficient multi-session TUI coding agent"
+publish = false
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+time = { version = "0.3", features = ["formatting"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true
