@@ -54,6 +54,7 @@
 
 - [About the Project](#star2-about-the-project)
   * [Project Status](#bar_chart-project-status)
+  * [Repository Layout](#file_folder-repository-layout)
   * [Tech Stack](#space_invader-tech-stack)
   * [Features](#dart-features)
 - [Getting Started](#toolbox-getting-started)
@@ -111,6 +112,23 @@ decision, 2026-11-15: no M0–M6 phase gates).
 | 7 | Autolearn | ⏳ pending |
 | 8 | Crew (`plan`/`work`/`task.*`) | ⏳ pending |
 | 9 | Hardening + docs | ⏳ pending |
+
+<!-- Repository Layout -->
+### :file_folder: Repository layout
+
+```
+.
+├── PRD.md              # product requirements & design (v0.1)
+├── KONTRAK.md          # AI Operating Contract v7.0 (governance)
+├── SECURITY.md         # trust boundaries & reporting
+├── CHANGELOG.md        # Keep a Changelog
+├── CONTRIBUTING.md     # how to contribute
+├── CODE_OF_CONDUCT.md  # community expectations
+├── docs/
+│   ├── README.md       # documentation index
+│   └── adr/            # architecture decision records
+└── .github/            # issue & PR templates
+```
 
 <!-- TechStack -->
 ### :space_invader: Tech Stack
