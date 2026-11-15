@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the design first
+    url: https://github.com/Fahzan1296/maple/blob/master/PRD.md
+    about: The PRD holds the roadmap, non-goals, and open questions — check it before filing a feature request.
+  - name: Security policy
+    url: https://github.com/Fahzan1296/maple/blob/master/SECURITY.md
+    about: Report vulnerabilities privately, never as a public issue.
