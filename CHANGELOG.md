@@ -71,6 +71,10 @@ All notable changes to this project are documented here. The format follows
 - Apps slice #2: `apps::debug::terminal_info` (terminal capability snapshot and
   the debug-menu report) plus `CellDimensions` in maple-tui
   (`cell_dimensions` / `set_cell_dimensions`).
+- Apps slice #3: `apps::debug::viewer_frame` (rounded panel, fixed header and
+  footer rows, persistent scroll viewport with selection reveal) plus the
+  `ScrollView` reveal-range API (`ScrollRangeAnchor`, `reveal_range`,
+  `logical_row_at`).
 
 ### Changed
 
