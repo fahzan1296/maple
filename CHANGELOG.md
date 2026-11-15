@@ -78,6 +78,11 @@ All notable changes to this project are documented here. The format follows
 - Apps slice #4: `apps::debug::log_viewer` model (filter, pagination, expansion,
   selection, session boundary marker, older-history paging) plus
   `split_log_text` / `build_log_copy_payload`.
+- Apps slice #5: `apps::ps_data` — `omp ps` table data (broker scopes, daemon
+  rows, `format_command` / `collapse_command` / `daemon_label`, colored state,
+  flags and uptime cells, `table_cells` aligned with `TABLE_HEADER`,
+  `scope_header`), with the daemon state types declared in-module until the
+  daemon port lands.
 
 ### Changed
 
