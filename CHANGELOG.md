@@ -66,6 +66,8 @@ All notable changes to this project are documented here. The format follows
   `--global`); `scripts/uninstall.sh` removes it again.
 - `scripts/dev.sh` — local CI mirror: build and test with two jobs, then
   `fmt`/`clippy` when those tools are installed.
+- CI enforces `KONTRAK.md` §SOP-RESLIM: `timeout-minutes` per job and step,
+  sized-runner justification, and 7-day artifact retention.
 
 ### Changed
 
