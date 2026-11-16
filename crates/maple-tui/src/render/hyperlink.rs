@@ -416,6 +416,17 @@ pub fn plain_hyperlink_text(text: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Serializes tests that read or write the process-wide file-link target.
+    /// `try_file_uri` consults a global, so unsynchronized parallel tests race
+    /// (the setting from one test leaks into another's expectation).
+    static FILE_LINK_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn file_link_guard() -> std::sync::MutexGuard<'static, ()> {
+        FILE_LINK_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     #[test]
     fn wraps_with_osc8_and_id() {
         apply_hyperlink_setting(Some(HyperlinkMode::Always));
@@ -482,6 +493,7 @@ mod tests {
 
     #[test]
     fn file_uri_encodes_paths() {
+        let _file_link_guard = file_link_guard();
         assert_eq!(
             try_file_uri("/tmp/a b.rs", FilePosition::default(), true),
             Some("file:///tmp/a%20b.rs".to_string())
@@ -491,6 +503,7 @@ mod tests {
 
     #[test]
     fn vscode_uri_carries_position_suffix() {
+        let _file_link_guard = file_link_guard();
         assert_eq!(
             file_uri_for_terminal(
                 "/tmp/a.rs",
@@ -510,6 +523,7 @@ mod tests {
 
     #[test]
     fn file_link_setting_validates_scheme_and_host() {
+        let _file_link_guard = file_link_guard();
         apply_file_link_setting(FileLinkConfig {
             scheme: Some("myapp".into()),
             host: Some("example.com".into()),
