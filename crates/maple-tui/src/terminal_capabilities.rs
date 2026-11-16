@@ -1196,6 +1196,45 @@ pub fn terminal() -> RuntimeTerminal {
 	TERMINAL.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
 }
 
+/// Cell size in pixels, updated when the terminal answers a cell-size query.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellDimensions {
+	/// Cell width in pixels.
+	pub width_px: u32,
+	/// Cell height in pixels.
+	pub height_px: u32,
+}
+
+impl Default for CellDimensions {
+	fn default() -> Self {
+		Self { width_px: 9, height_px: 18 }
+	}
+}
+
+static CELL_DIMENSIONS: LazyLock<RwLock<CellDimensions>> = LazyLock::new(|| RwLock::new(CellDimensions::default()));
+
+/// The current cell size in pixels (9x18 until a cell-size query answers).
+pub fn cell_dimensions() -> CellDimensions {
+	*CELL_DIMENSIONS.read().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Record the cell size reported by the terminal.
+pub fn set_cell_dimensions(dimensions: CellDimensions) {
+	*CELL_DIMENSIONS.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = dimensions;
+}
+
+#[cfg(test)]
+mod cell_dimensions_tests {
+	use super::*;
+
+	#[test]
+	fn defaults_to_9x18_and_roundtrips() {
+		assert_eq!(cell_dimensions(), CellDimensions { width_px: 9, height_px: 18 });
+		set_cell_dimensions(CellDimensions { width_px: 10, height_px: 20 });
+		assert_eq!(cell_dimensions(), CellDimensions { width_px: 10, height_px: 20 });
+	}
+}
+
 /// Override terminal image protocol at runtime after capability probes complete.
 pub fn set_terminal_image_protocol(image_protocol: Option<ImageProtocol>) {
 	TERMINAL.write().unwrap_or_else(|poisoned| poisoned.into_inner()).image_protocol = image_protocol;
