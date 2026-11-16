@@ -89,6 +89,11 @@ All notable changes to this project are documented here. The format follows
   `find_baseline_secondary`) plus the `ExperimentResult` / `MetricDef` /
   `MetricDirection` / `AsiValue` types, declared in-module until the
   `tools/autoresearch` port lands.
+- Apps slice #7: `apps::git::colors` — truecolor git chrome helpers
+  (`GitPalette`, `hex_channels`, `bg_ansi_hex` / `fg_ansi_hex`, `luminance`,
+  `with_bg`, `pill`, `chip_fill`, `selection_bg_ansi`, `tint_chip`,
+  `soft_pill`); the theme is passed in as a resolved palette instead of a
+  global singleton.
 
 ### Changed
 
