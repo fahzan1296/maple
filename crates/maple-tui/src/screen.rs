@@ -1,6 +1,6 @@
 //! Differential screen painter.
 //!
-//! Mirrors the pi-tui paint contract: every frame is bracketed by
+//! Mirrors the `l/src/tui.ts` paint contract: every frame is bracketed by
 //! `PAINT_BEGIN`/`PAINT_END` (hide cursor, DEC 2026 synchronized output when
 //! enabled, autowrap guard), content rows are addressed with `CSI row;1H`,
 //! stale rows are reset and cleared before rewriting, and ordinary frames
@@ -39,7 +39,7 @@ impl Screen {
 
     /// True when DEC 2026 synchronized output is emitted (default on).
     pub fn synchronized_output_enabled() -> bool {
-        !std::env::var_os("PI_NO_SYNC_OUTPUT")
+        !crate::env_lookup("MAPLE_NO_SYNC_OUTPUT")
             .map(|value| value == "1")
             .unwrap_or(false)
     }

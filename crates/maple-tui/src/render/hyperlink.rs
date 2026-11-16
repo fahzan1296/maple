@@ -12,6 +12,7 @@ use std::io::IsTerminal;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use crate::ansi_scan::{scan, strip_ansi, Token};
+use crate::native::node::Span;
 use crate::text_shape::visible_width;
 
 const OSC: &str = "\x1b]";
@@ -350,6 +351,42 @@ pub fn file_hyperlink(file_path: &str, display_text: &str, position: FilePositio
         Some(uri) => hyperlink(display_text, &uri),
         None => display_text.to_string(),
     }
+}
+
+/// A native link span to an HTTP(S) URL (`www.` inputs become `https://`).
+///
+/// Unlike the OSC 8 wrappers this ignores terminal capability detection — a
+/// TSP terminal always handles `href` — but honours an explicit `off` policy.
+/// Non-HTTP(S) or unparsable URLs yield a plain span.
+pub fn url_link_span(target: &str, display_text: &str, s: &str) -> Span {
+	if hyperlink_mode() == HyperlinkMode::Off {
+		return Span::styled(display_text, s);
+	}
+	match normalize_http_url(target) {
+		Some(href) if safe_uri(&href) => {
+			let mut span = Span::styled(display_text, s);
+			span.href = Some(href);
+			span
+		}
+		_ => Span::styled(display_text, s),
+	}
+}
+
+/// A native link span to a filesystem path using the configured file-link
+/// target. Honours an explicit `off` policy.
+pub fn file_link_span(file_path: &str, display_text: &str, s: &str) -> Span {
+	if hyperlink_mode() == HyperlinkMode::Off {
+		return Span::styled(display_text, s);
+	}
+	let href = try_file_uri(file_path, FilePosition::default(), false).filter(|uri| safe_uri(uri));
+	match href {
+		Some(href) => {
+			let mut span = Span::styled(display_text, s);
+			span.href = Some(href);
+			span
+		}
+		None => Span::styled(display_text, s),
+	}
 }
 
 /// Remove every OSC 8 open/close sequence, leaving the display text in place.

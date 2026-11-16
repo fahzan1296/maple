@@ -169,7 +169,7 @@ impl FallbackTheme {
             "icon.advisor" => "👁",
             "icon.advisorClosed" => "🙈",
             "icon.time" => "⏱",
-            "icon.omp" => "π",
+            "icon.maple" => "π",
             "icon.ghost" => "👻",
             "icon.agents" => "👥",
             "icon.job" => "⚙",

@@ -789,7 +789,7 @@ fn brand_mark(glyph: &str, profile: &Option<String>) -> String {
     }
 }
 
-/// Turn timer in omp's brand format.
+/// Turn timer in maple's brand format.
 fn brand_timer(elapsed_ms: u64) -> String {
     let seconds = elapsed_ms / 1_000;
     if seconds < 60 {
@@ -1233,7 +1233,7 @@ fn project_dir_display(ctx: &SegmentContext, project_dir: &str) -> (bool, String
 // Segment Implementations
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn pi_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment {
+fn brand_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment {
     if let Some(agent) = &ctx.focused_agent_id {
         let ghost = theme.symbol("icon.ghost");
         let icon = if ghost.is_empty() {
@@ -1247,7 +1247,7 @@ fn pi_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment 
         .brand_fg_ansi
         .clone()
         .unwrap_or_else(|| theme.fg_ansi("dim"));
-    let opts = ctx.options.pi.clone().unwrap_or_default();
+    let opts = ctx.options.brand.clone().unwrap_or_default();
     let profile = if opts.show_profile() {
         ctx.session.profile.clone()
     } else {
@@ -1259,7 +1259,7 @@ fn pi_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment 
             brand_mark(&brand_spinner_frame(theme, ctx), &profile),
             brand_timer(elapsed)
         ),
-        None => brand_mark(&theme.symbol("icon.omp"), &profile),
+        None => brand_mark(&theme.symbol("icon.maple"), &profile),
     };
     RenderedSegment::shown(format!("{fg}{content}\x1b[39m"))
 }
@@ -1986,7 +1986,7 @@ pub fn render_segment(id: SegmentId, ctx: &SegmentContext) -> RenderedSegment {
 /// Render one catalog segment against an explicit theme.
 pub fn render_segment_with(id: SegmentId, theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment {
     match id {
-        SegmentId::Pi => pi_segment(theme, ctx),
+        SegmentId::Brand => brand_segment(theme, ctx),
         SegmentId::Status => status_segment(theme, ctx),
         SegmentId::Model => model_segment(theme, ctx),
         SegmentId::Mode => mode_segment(theme, ctx),
@@ -2306,19 +2306,19 @@ mod tests {
     }
 
     #[test]
-    fn pi_segment_spinner_and_timer() {
+    fn brand_segment_spinner_and_timer() {
         let mut ctx = sample_ctx();
         ctx.turn_elapsed_ms = Some(65_000);
         ctx.session.profile = Some("work".to_string());
-        assert_eq!(render(SegmentId::Pi, &ctx).content, "⠋-work 1m\x1b[39m");
+        assert_eq!(render(SegmentId::Brand, &ctx).content, "⠋-work 1m\x1b[39m");
     }
 
     #[test]
-    fn pi_segment_ghost_for_focused_agent() {
+    fn brand_segment_ghost_for_focused_agent() {
         let mut ctx = sample_ctx();
         ctx.focused_agent_id = Some("agent-7".to_string());
         assert_eq!(
-            render(SegmentId::Pi, &ctx).content,
+            render(SegmentId::Brand, &ctx).content,
             "👻 agent-7\x1b[39m"
         );
     }

@@ -16,6 +16,14 @@ pub mod describe;
 pub mod encode;
 /// The `NativeNode` model, kinds, props and describe context.
 pub mod node;
+/// Quiet-mode reduction of terminal-clocked animations.
+pub mod quiet;
+/// Theme colour tokens ↔ TSP tones.
+pub mod tone;
+/// PUA icon glyph runs normalized into `icon` spans.
+pub mod icons;
+/// Row estimation for described subtrees.
+pub mod measure;
 /// ANSI-styled text → escape-free spans and plain text.
 pub mod spans;
 /// Native state, settle memo, bounded reconciler and document applier.
@@ -45,6 +53,13 @@ pub use spans::{
     compact_text, plain_line, plain_text, rows_text, spans_line, style_spans, styled_background,
     styled_spans,
 };
+pub use quiet::{quiet_motion, QuietSwitches};
+pub use tone::{
+    background_chrome, color_tone, color_tone_token, sample_background, sample_foreground,
+    tone_color, BackgroundChrome,
+};
+pub use icons::{normalize_icon_props, normalize_icon_spans, normalize_icon_text};
+pub use measure::{estimate_rows, DescribedOf, MeasureChild};
 pub use state::{
     escape_segment, native_state, same_items, same_props, unescape_segment, ApplyError, Frame,
     FrameOp, Memo, NativeCounters, NativeReconciler, NativeSettle, NativeState, SettleKey,

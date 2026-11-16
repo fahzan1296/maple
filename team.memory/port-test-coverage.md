@@ -27,8 +27,8 @@ Non-test helpers were skipped: `chat-simple.ts`, `virtual-render-scheduler.ts`,
 ## 2. Method and classification rules
 
 1. Listed all 354 test files; read each file's import lines to identify the subject
-   module(s) in `l/src/`. `@oh-my-pi/pi-tui/<sub>/<file>` → `l/src/<sub>/<file>.ts`;
-   bare `@oh-my-pi/pi-tui` → `l/src/index.ts` re-exports; `../src/...` → `l/src/...`.
+   module(s) in `l/src/`. `maple-tui/<sub>/<file>` → `l/src/<sub>/<file>.ts`;
+   bare `maple-tui` → `l/src/index.ts` re-exports; `../src/...` → `l/src/...`.
 2. Built the ported-module set from every `Reference:` / `Ported from` / `port of` header
    in `crates/maple-tui/src` and `src` (63 headers), plus the `#[cfg(test)]` inventory
    (90 Rust test modules).
@@ -87,7 +87,7 @@ Rust test anchors are cited as `file:line` of the `#[cfg(test)]` attribute.
 | status-line-model | status_line/segments.rs:2044 (`Model`, `Stream`) |
 | status-line-newline-guard | render/tool_card.rs:468 (`render_status_line`, ports render/status-line.ts) |
 | status-line-path | status_line/segments.rs:2044 (`Path`) |
-| status-line-profile | status_line/segments.rs:2044 (`Pi`) |
+| status-line-profile | status_line/segments.rs:2044 (`Brand`) |
 | status-line-vim | status_line/segments.rs:2044 (`Vim`) |
 
 ### terminal (7)

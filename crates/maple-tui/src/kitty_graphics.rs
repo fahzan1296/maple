@@ -91,20 +91,20 @@ pub fn set_kitty_graphics(features: KittyGraphicsFeatures) {
 /// Kitty, Ghostty, Otty, Monstar, Rio and Tern advertise placeholder support
 /// directly. A multiplexer cannot use cursor-positioned placements because the
 /// outer terminal does not know pane scroll/reflow state. An explicit
-/// `PI_FORCE_IMAGE_PROTOCOL=kitty` opts into placeholders under any multiplexer —
+/// `MAPLE_FORCE_IMAGE_PROTOCOL=kitty` opts into placeholders under any multiplexer —
 /// matching `timg -pk`. Automatic fallback stays off inside multiplexers whose
 /// pane marker does not prove that a Kitty renderer is enabled (Herdr's is
 /// experimental).
 ///
-/// `PI_NO_KITTY_PLACEHOLDERS=1` and `PI_KITTY_PLACEHOLDERS=0` remain hard
-/// opt-outs; `PI_KITTY_PLACEHOLDERS=1` explicitly opts in anywhere else.
+/// `MAPLE_NO_KITTY_PLACEHOLDERS=1` and `MAPLE_KITTY_PLACEHOLDERS=0` remain hard
+/// opt-outs; `MAPLE_KITTY_PLACEHOLDERS=1` explicitly opts in anywhere else.
 pub fn detect_kitty_unicode_placeholders_support(terminal_id: TerminalId, env: &impl EnvReader) -> bool {
 	let normalized = |value: Option<String>| value.map(|value| value.trim().to_ascii_lowercase()).unwrap_or_default();
-	let off_raw = normalized(env.get("PI_NO_KITTY_PLACEHOLDERS"));
+	let off_raw = normalized(env.get("MAPLE_NO_KITTY_PLACEHOLDERS"));
 	if matches!(off_raw.as_str(), "1" | "true" | "on" | "yes" | "y") {
 		return false;
 	}
-	let force = normalized(env.get("PI_KITTY_PLACEHOLDERS"));
+	let force = normalized(env.get("MAPLE_KITTY_PLACEHOLDERS"));
 	if matches!(force.as_str(), "1" | "true" | "on" | "yes" | "y") {
 		return true;
 	}
@@ -113,7 +113,7 @@ pub fn detect_kitty_unicode_placeholders_support(terminal_id: TerminalId, env: &
 	}
 	if is_inside_terminal_multiplexer(env)
 		&& env
-			.get("PI_FORCE_IMAGE_PROTOCOL")
+			.get("MAPLE_FORCE_IMAGE_PROTOCOL")
 			.map(|value| value.trim().eq_ignore_ascii_case("kitty"))
 			.unwrap_or(false)
 	{
@@ -317,13 +317,13 @@ mod tests {
 
 	#[test]
 	fn placeholder_support_honors_opt_out_and_opt_in() {
-		let off = env(&[("PI_NO_KITTY_PLACEHOLDERS", "1")]);
+		let off = env(&[("MAPLE_NO_KITTY_PLACEHOLDERS", "1")]);
 		assert!(!detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &off));
 
-		let both = env(&[("PI_KITTY_PLACEHOLDERS", "0"), ("PI_NO_KITTY_PLACEHOLDERS", "1")]);
+		let both = env(&[("MAPLE_KITTY_PLACEHOLDERS", "0"), ("MAPLE_NO_KITTY_PLACEHOLDERS", "1")]);
 		assert!(!detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &both));
 
-		let force = env(&[("PI_KITTY_PLACEHOLDERS", "yes")]);
+		let force = env(&[("MAPLE_KITTY_PLACEHOLDERS", "yes")]);
 		assert!(detect_kitty_unicode_placeholders_support(TerminalId::Warp, &force));
 	}
 
@@ -360,7 +360,7 @@ mod tests {
 		assert!(detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &tmux));
 		let herdr = env(&[("HERDR_ENV", "1")]);
 		assert!(!detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &herdr));
-		let forced = env(&[("HERDR_ENV", "1"), ("PI_FORCE_IMAGE_PROTOCOL", "kitty")]);
+		let forced = env(&[("HERDR_ENV", "1"), ("MAPLE_FORCE_IMAGE_PROTOCOL", "kitty")]);
 		assert!(detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &forced));
 	}
 

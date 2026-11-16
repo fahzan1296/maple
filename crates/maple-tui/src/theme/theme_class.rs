@@ -404,8 +404,8 @@ pub struct IconSymbols {
 	pub advisor_closed: String,
 	/// Time.
 	pub time: String,
-	/// omp.
-	pub omp: String,
+	/// Brand glyph.
+	pub maple: String,
 	/// Ghost.
 	pub ghost: String,
 	/// Agents.
@@ -1274,7 +1274,7 @@ impl Theme {
 			advisor: self.sym("icon.advisor"),
 			advisor_closed: self.sym("icon.advisorClosed"),
 			time: self.sym("icon.time"),
-			omp: self.sym("icon.omp"),
+			maple: self.sym("icon.maple"),
 			ghost: self.sym("icon.ghost"),
 			agents: self.sym("icon.agents"),
 			job: self.sym("icon.job"),

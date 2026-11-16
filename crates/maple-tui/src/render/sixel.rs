@@ -18,27 +18,27 @@ static SIXEL_SEQUENCE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 static SIXEL_PLACEHOLDER_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"__OMP_SIXEL_SEQUENCE_(\d+)__").expect("valid regex"));
 
-/// Parse a pi-utils style boolean flag (`1`, `true`, `yes`, `on`).
+/// Parse a maple-tui style boolean flag (`1`, `true`, `yes`, `on`).
 fn flag(name: &str) -> bool {
-    match std::env::var(name) {
-        Ok(value) => {
+    match crate::env_lookup(name).and_then(|value| value.into_string().ok()) {
+        Some(value) => {
             let value = value.trim().to_ascii_lowercase();
             matches!(value.as_str(), "1" | "true" | "yes" | "on")
         }
-        Err(_) => false,
+        None => false,
     }
 }
 
 /// Whether SIXEL passthrough is explicitly enabled.
 ///
 /// Both gates must be enabled to preserve SIXEL control sequences:
-/// `PI_FORCE_IMAGE_PROTOCOL=sixel` and `PI_ALLOW_SIXEL_PASSTHROUGH=1`.
+/// `MAPLE_FORCE_IMAGE_PROTOCOL=sixel` and `MAPLE_ALLOW_SIXEL_PASSTHROUGH=1`.
 pub fn is_sixel_passthrough_enabled() -> bool {
-    let forced = std::env::var("PI_FORCE_IMAGE_PROTOCOL")
-        .ok()
+    let forced = crate::env_lookup("MAPLE_FORCE_IMAGE_PROTOCOL")
+        .and_then(|value| value.into_string().ok())
         .map(|value| value.trim().eq_ignore_ascii_case("sixel"))
         .unwrap_or(false);
-    forced && flag("PI_ALLOW_SIXEL_PASSTHROUGH")
+    forced && flag("MAPLE_ALLOW_SIXEL_PASSTHROUGH")
 }
 
 /// Whether the text contains a SIXEL start sequence.

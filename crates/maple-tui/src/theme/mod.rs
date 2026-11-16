@@ -1,7 +1,7 @@
 //! Theme system: JSON schema, color math, symbol presets, built-in themes and
 //! the resolved [`Theme`] used by every renderer.
 //!
-//! Ported from `@oh-my-pi/pi-tui`'s `theme/` directory. The module is split the
+//! Ported from the reference `l/src/theme/` directory. The module is split the
 //! same way:
 //!
 //! - [`schema`] — color token key sets and the serde `ThemeJson` shape.

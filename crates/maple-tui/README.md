@@ -1,6 +1,6 @@
 # maple-tui
 
-Clean-room Rust port of the `@oh-my-pi/pi-tui` terminal UI toolkit: a
+Clean-room Rust port of the `maple-tui` terminal UI toolkit: a
 component model with differential rendering, ANSI-aware text shaping, themes,
 and terminal backends.
 

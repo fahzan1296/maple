@@ -52,7 +52,7 @@ pub struct ProcessEnv;
 
 impl EnvReader for ProcessEnv {
 	fn get(&self, key: &str) -> Option<String> {
-		env::var(key).ok()
+		crate::env_lookup(key).and_then(|value| value.into_string().ok())
 	}
 
 	fn is_tty(&self) -> bool {
@@ -317,7 +317,7 @@ pub enum MultiplexerHyperlinks {
 	Forward { term_program: &'static str, major: u32, minor: u32 },
 }
 
-/// A terminal multiplexer omp recognizes, in upstream registry order.
+/// A terminal multiplexer maple recognizes, in upstream registry order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MultiplexerSession {
 	Herdr,
@@ -487,11 +487,11 @@ pub fn wrap_tmux_passthrough_if_needed(payload: &str, env: &impl EnvReader) -> S
 ///
 /// Upstream runs `tmux display-message -p '#{client_termtype}\t#{client_termname}'`,
 /// which is subprocess I/O and therefore outside this I/O-free detection core.
-/// The pure seam is the comma-separated `PI_TMUX_CLIENT_TERMINAL_NAMES` override,
+/// The pure seam is the comma-separated `MAPLE_TMUX_CLIENT_TERMINAL_NAMES` override,
 /// which embedders and tests can populate with the client's `TERM_PROGRAM`/`TERM`
 /// names. Returns an empty list otherwise.
 pub fn resolve_tmux_client_terminal_names(env: &impl EnvReader) -> Vec<String> {
-	env.get("PI_TMUX_CLIENT_TERMINAL_NAMES")
+		env.get("MAPLE_TMUX_CLIENT_TERMINAL_NAMES")
 		.map(|value| {
 			value
 				.split(',')
@@ -506,12 +506,12 @@ pub fn resolve_tmux_client_terminal_names(env: &impl EnvReader) -> Vec<String> {
 ///
 /// Upstream resolves the effective `allow-passthrough` option with a
 /// `tmux show-options` subprocess. That query is I/O and is intentionally not
-/// part of this core; the pure seam is `PI_TMUX_ALLOW_PASSTHROUGH`
+/// part of this core; the pure seam is `MAPLE_TMUX_ALLOW_PASSTHROUGH`
 /// (`1`/`true`/`on`/`all`). Without it the tmux 3.3+ default of `off` is
 /// reported, which is the safe choice for Kitty graphics.
 pub fn tmux_pane_allows_passthrough(env: &impl EnvReader) -> bool {
 	matches!(
-		env.get("PI_TMUX_ALLOW_PASSTHROUGH")
+		env.get("MAPLE_TMUX_ALLOW_PASSTHROUGH")
 			.map(|value| value.trim().to_ascii_lowercase())
 			.as_deref(),
 		Some("1") | Some("true") | Some("on") | Some("all")
@@ -770,18 +770,18 @@ pub fn is_ssh_session(env: &impl EnvReader) -> bool {
 	non_empty(env, "SSH_CONNECTION").is_some() || non_empty(env, "SSH_TTY").is_some() || non_empty(env, "SSH_CLIENT").is_some()
 }
 
-/// Whether notifications are suppressed with `PI_NOTIFICATIONS`.
+/// Whether notifications are suppressed with `MAPLE_NOTIFICATIONS`.
 pub fn is_notification_suppressed() -> bool {
-	let Some(value) = env::var("PI_NOTIFICATIONS").ok() else {
+	let Some(value) = crate::env_lookup("MAPLE_NOTIFICATIONS").and_then(|value| value.into_string().ok()) else {
 		return false;
 	};
 	matches!(value.as_str(), "off" | "0" | "false")
 }
 
-/// Resolved `PI_FORCE_IMAGE_PROTOCOL` value: outer `None` = unset, inner `None`
+/// Resolved `MAPLE_FORCE_IMAGE_PROTOCOL` value: outer `None` = unset, inner `None`
 /// = forced off.
 fn forced_image_protocol(env: &impl EnvReader) -> Option<Option<ImageProtocol>> {
-	let raw = non_empty(env, "PI_FORCE_IMAGE_PROTOCOL")?.trim().to_ascii_lowercase();
+	let raw = non_empty(env, "MAPLE_FORCE_IMAGE_PROTOCOL")?.trim().to_ascii_lowercase();
 	match raw.as_str() {
 		"kitty" => Some(Some(ImageProtocol::Kitty)),
 		"iterm2" | "iterm" => Some(Some(ImageProtocol::Iterm2)),
@@ -791,7 +791,7 @@ fn forced_image_protocol(env: &impl EnvReader) -> Option<Option<ImageProtocol>> 
 	}
 }
 
-/// Whether `PI_FORCE_IMAGE_PROTOCOL` pins the image protocol, including its
+/// Whether `MAPLE_FORCE_IMAGE_PROTOCOL` pins the image protocol, including its
 /// `off`/`none` kill switch.
 pub fn is_image_protocol_forced() -> bool {
 	forced_image_protocol(&ProcessEnv).is_some()
@@ -818,10 +818,10 @@ pub fn is_windows_terminal_preview_sixel_supported(env: &impl EnvReader, platfor
 /// Explicit user override for DEC 2026 synchronized output: `Some(false)` opt-out,
 /// `Some(true)` force-on, `None` no preference. An opt-out beats a force-on.
 pub fn synchronized_output_user_override(env: &impl EnvReader) -> Option<bool> {
-	if non_empty(env, "PI_NO_SYNC_OUTPUT").is_some() || env.get("PI_TUI_SYNC_OUTPUT").as_deref() == Some("0") {
+	if non_empty(env, "MAPLE_NO_SYNC_OUTPUT").is_some() || env.get("MAPLE_TUI_SYNC_OUTPUT").as_deref() == Some("0") {
 		return Some(false);
 	}
-	if env.get("PI_FORCE_SYNC_OUTPUT").as_deref() == Some("1") || env.get("PI_TUI_SYNC_OUTPUT").as_deref() == Some("1") {
+	if env.get("MAPLE_FORCE_SYNC_OUTPUT").as_deref() == Some("1") || env.get("MAPLE_TUI_SYNC_OUTPUT").as_deref() == Some("1") {
 		return Some(true);
 	}
 	None
@@ -876,12 +876,12 @@ pub fn should_enable_synchronized_output_by_default(env: &impl EnvReader, termin
 ///
 /// Verified against terminal sources rather than terminfo: Kitty implements it
 /// for all SGR attributes including background; Ghostty does not. Disabled under
-/// tmux/screen/zellij multiplexers and via the `PI_NO_DECCARA` kill switch.
+/// tmux/screen/zellij multiplexers and via the `MAPLE_NO_DECCARA` kill switch.
 pub fn detect_rectangular_sgr_support(terminal_id: TerminalId, env: &impl EnvReader) -> bool {
 	if terminal_id != TerminalId::Kitty {
 		return false;
 	}
-	if let Some(kill) = env.get("PI_NO_DECCARA") {
+	if let Some(kill) = env.get("MAPLE_NO_DECCARA") {
 		if kill != "0" && !kill.eq_ignore_ascii_case("false") {
 			return false;
 		}
@@ -916,10 +916,10 @@ pub fn detect_styled_underline_support(terminal_id: TerminalId, env: &impl EnvRe
 /// Explicit user override for OSC 8 hyperlinks: `Some(false)` opt-out,
 /// `Some(true)` force-on, `None` no preference. Opt-out wins ties.
 pub fn hyperlinks_user_override(env: &impl EnvReader) -> Option<bool> {
-	if env.get("PI_NO_HYPERLINKS").as_deref() == Some("1") {
+	if env.get("MAPLE_NO_HYPERLINKS").as_deref() == Some("1") {
 		return Some(false);
 	}
-	if env.get("PI_FORCE_HYPERLINKS").as_deref() == Some("1") {
+	if env.get("MAPLE_FORCE_HYPERLINKS").as_deref() == Some("1") {
 		return Some(true);
 	}
 	None
@@ -1653,7 +1653,7 @@ mod tests {
 
 	#[test]
 	fn tmux_client_names_and_term_fallback_resolve_identity() {
-		let client = env(&[("TMUX", "x"), ("PI_TMUX_CLIENT_TERMINAL_NAMES", "xterm-kitty,kitty")]);
+		let client = env(&[("TMUX", "x"), ("MAPLE_TMUX_CLIENT_TERMINAL_NAMES", "xterm-kitty,kitty")]);
 		assert_eq!(detect_terminal_id(&client), TerminalId::Kitty);
 		assert_eq!(detect_terminal_id(&env(&[("TERM", "xterm-ghostty")])), TerminalId::Ghostty);
 		assert_eq!(detect_terminal_id(&env(&[("TERM", "monstar")])), TerminalId::Monstar);
@@ -1663,11 +1663,11 @@ mod tests {
 	#[test]
 	fn forced_image_protocol_parses_kill_switch_and_unknown_values() {
 		assert_eq!(forced_image_protocol(&env(&[])), None);
-		assert_eq!(forced_image_protocol(&env(&[("PI_FORCE_IMAGE_PROTOCOL", "kitty")])), Some(Some(ImageProtocol::Kitty)));
-		assert_eq!(forced_image_protocol(&env(&[("PI_FORCE_IMAGE_PROTOCOL", "iterm")])), Some(Some(ImageProtocol::Iterm2)));
-		assert_eq!(forced_image_protocol(&env(&[("PI_FORCE_IMAGE_PROTOCOL", "sixel")])), Some(Some(ImageProtocol::Sixel)));
-		assert_eq!(forced_image_protocol(&env(&[("PI_FORCE_IMAGE_PROTOCOL", "off")])), Some(None));
-		assert_eq!(forced_image_protocol(&env(&[("PI_FORCE_IMAGE_PROTOCOL", "nonsense")])), Some(None));
+		assert_eq!(forced_image_protocol(&env(&[("MAPLE_FORCE_IMAGE_PROTOCOL", "kitty")])), Some(Some(ImageProtocol::Kitty)));
+		assert_eq!(forced_image_protocol(&env(&[("MAPLE_FORCE_IMAGE_PROTOCOL", "iterm")])), Some(Some(ImageProtocol::Iterm2)));
+		assert_eq!(forced_image_protocol(&env(&[("MAPLE_FORCE_IMAGE_PROTOCOL", "sixel")])), Some(Some(ImageProtocol::Sixel)));
+		assert_eq!(forced_image_protocol(&env(&[("MAPLE_FORCE_IMAGE_PROTOCOL", "off")])), Some(None));
+		assert_eq!(forced_image_protocol(&env(&[("MAPLE_FORCE_IMAGE_PROTOCOL", "nonsense")])), Some(None));
 	}
 
 	#[test]
@@ -1682,9 +1682,9 @@ mod tests {
 	#[test]
 	fn synchronized_output_honors_override_features_and_multiplexers() {
 		assert_eq!(synchronized_output_user_override(&env(&[])), None);
-		assert_eq!(synchronized_output_user_override(&env(&[("PI_NO_SYNC_OUTPUT", "1")])), Some(false));
-		assert_eq!(synchronized_output_user_override(&env(&[("PI_FORCE_SYNC_OUTPUT", "1"), ("PI_NO_SYNC_OUTPUT", "1")])), Some(false));
-		assert_eq!(synchronized_output_user_override(&env(&[("PI_TUI_SYNC_OUTPUT", "1")])), Some(true));
+		assert_eq!(synchronized_output_user_override(&env(&[("MAPLE_NO_SYNC_OUTPUT", "1")])), Some(false));
+		assert_eq!(synchronized_output_user_override(&env(&[("MAPLE_FORCE_SYNC_OUTPUT", "1"), ("MAPLE_NO_SYNC_OUTPUT", "1")])), Some(false));
+		assert_eq!(synchronized_output_user_override(&env(&[("MAPLE_TUI_SYNC_OUTPUT", "1")])), Some(true));
 
 		let features = env(&[("TERM_FEATURES", "Sy")]);
 		assert!(should_enable_synchronized_output_by_default(&features, TerminalId::Base));
@@ -1700,8 +1700,8 @@ mod tests {
 	fn rectangular_sgr_is_kitty_only_and_killed_by_multiplexer() {
 		assert!(detect_rectangular_sgr_support(TerminalId::Kitty, &env(&[])));
 		assert!(!detect_rectangular_sgr_support(TerminalId::Ghostty, &env(&[])));
-		assert!(!detect_rectangular_sgr_support(TerminalId::Kitty, &env(&[("PI_NO_DECCARA", "1")])));
-		assert!(detect_rectangular_sgr_support(TerminalId::Kitty, &env(&[("PI_NO_DECCARA", "false")])));
+		assert!(!detect_rectangular_sgr_support(TerminalId::Kitty, &env(&[("MAPLE_NO_DECCARA", "1")])));
+		assert!(detect_rectangular_sgr_support(TerminalId::Kitty, &env(&[("MAPLE_NO_DECCARA", "false")])));
 		assert!(!detect_rectangular_sgr_support(TerminalId::Kitty, &env(&[("TMUX", "x")])));
 	}
 
@@ -1721,8 +1721,8 @@ mod tests {
 	#[test]
 	fn hyperlink_policies_follow_overrides_and_multiplexer_sessions() {
 		assert_eq!(hyperlinks_user_override(&env(&[])), None);
-		assert_eq!(hyperlinks_user_override(&env(&[("PI_NO_HYPERLINKS", "1"), ("PI_FORCE_HYPERLINKS", "1")])), Some(false));
-		assert_eq!(hyperlinks_user_override(&env(&[("PI_FORCE_HYPERLINKS", "1")])), Some(true));
+		assert_eq!(hyperlinks_user_override(&env(&[("MAPLE_NO_HYPERLINKS", "1"), ("MAPLE_FORCE_HYPERLINKS", "1")])), Some(false));
+		assert_eq!(hyperlinks_user_override(&env(&[("MAPLE_FORCE_HYPERLINKS", "1")])), Some(true));
 
 		assert!(should_enable_hyperlinks_by_default(&env(&[]), TerminalId::Kitty));
 		assert!(!should_enable_hyperlinks_by_default(&env(&[]), TerminalId::Base));
@@ -1757,7 +1757,7 @@ mod tests {
 
 		let tmux = env(&[("TMUX", "x"), ("TERM_PROGRAM", "kitty")]);
 		assert_eq!(resolve_image_protocol(TerminalId::Kitty, &tmux, true), None);
-		let tmux_allowed = env(&[("TMUX", "x"), ("TERM_PROGRAM", "kitty"), ("PI_TMUX_ALLOW_PASSTHROUGH", "on")]);
+		let tmux_allowed = env(&[("TMUX", "x"), ("TERM_PROGRAM", "kitty"), ("MAPLE_TMUX_ALLOW_PASSTHROUGH", "on")]);
 		assert_eq!(resolve_image_protocol(TerminalId::Kitty, &tmux_allowed, true), Some(ImageProtocol::Kitty));
 
 	let mut screen = env(&[("TERM", "screen-256color")]);

@@ -111,6 +111,13 @@ All notable changes to this project are documented here. The format follows
   component, and tail-windowed visual truncation.
 - Engine slice #5: `render::width_aware_text` adds `wrap_tree_line` /
   `wrap_guided_line`, completing `l/src/render/hanging-wrap.ts`.
+- Engine slice #6: `render::{tree_list, file_list}` — `render_tree_list`
+  (generic `render_item` closure, collapse budget, muted "… N more" row) and
+  `render_file_list` / `describe_file_list`, plus `hyperlink::{file_link_span,
+  url_link_span}` completing `l/src/render/hyperlink.ts`.
+- Engine slice #7: `native::{quiet, tone, icons, measure}` — the describe-time
+  motion gate, theme-colour ↔ tone mapping, PUA icon-span normalization, and the
+  row estimator.
 - `team.memory/port-coverage.md` and `team.memory/port-test-coverage.md` —
   exhaustive MISSING/PARTIAL coverage maps for `l/src` (457 files) and
   `l/test` (354 files).
@@ -132,6 +139,13 @@ All notable changes to this project are documented here. The format follows
   2026-11-15).
 - Stack decision: pure Rust (ADR-0003) — one binary, no Bun/Node; TUI on
   `ratatui` + `crossterm`.
+- Total rebrand to maple: inherited `pi`/`omp`/`oh-my-pi` names removed from
+  code and docs. Environment variables are now `MAPLE_*` and still honour the
+  legacy `PI_*` name as a fallback (`maple_tui::env_lookup`); the custom-theme
+  directory is `~/.maple/tui/themes` (legacy `~/.pi/tui/themes` still found);
+  the theme symbol key is `icon.maple`; the status-line brand segment id is
+  `brand` (`pi` still parses). Wire bytes (APC/OSC/TSP sentinels, `omp.*` roles,
+  the OSC 99 app name) are unchanged so the protocol stays 1:1 with `l/`.
 
 ### Notes
 

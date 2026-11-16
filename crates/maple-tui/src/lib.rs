@@ -3,8 +3,8 @@
 //! Terminal user-interface toolkit: a component model with differential
 //! rendering, ANSI-aware text shaping, themes, and terminal backends.
 //!
-//! Clean-room Rust implementation inspired by `@oh-my-pi/pi-tui` behavior.
-//! No TypeScript source is copied; contracts and wire formats are reproduced.
+//! Clean-room Rust implementation of the `l/` reference tree. No TypeScript
+//! source is copied; contracts and wire formats are reproduced.
 
 mod ansi_scan;
 pub mod active_terminal;
@@ -49,6 +49,22 @@ pub mod tools;
 pub mod kitty_graphics;
 pub mod latex_to_unicode;
 pub mod terminal_capabilities;
+
+/// Look up a maple-branded environment variable, falling back to the legacy
+/// `PI_`-prefixed name so existing deployments and dotfiles keep working.
+///
+/// `env_lookup("MAPLE_TUI_THEMES_DIR")` therefore reads `MAPLE_TUI_THEMES_DIR`
+/// first and `PI_TUI_THEMES_DIR` second.
+pub fn env_lookup(name: &str) -> Option<std::ffi::OsString> {
+	if let Some(value) = std::env::var_os(name) {
+		return Some(value);
+	}
+	let legacy = name.replacen("MAPLE_", "PI_", 1);
+	if legacy != name {
+		return std::env::var_os(legacy);
+	}
+	None
+}
 
 
 
