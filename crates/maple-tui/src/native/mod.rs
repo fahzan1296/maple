@@ -16,6 +16,10 @@ pub mod describe;
 pub mod encode;
 /// The `NativeNode` model, kinds, props and describe context.
 pub mod node;
+/// Overlay sheets: cards, action bars, buttons, key hints.
+pub mod overlay;
+/// Selection pickers and their sheet wrapper.
+pub mod picker;
 /// Quiet-mode reduction of terminal-clocked animations.
 pub mod quiet;
 /// Theme colour tokens ↔ TSP tones.

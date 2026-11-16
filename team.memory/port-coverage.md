@@ -108,20 +108,24 @@ Reference tree enumerated: **457 `.ts` files** (contract stated 455; +2 from ful
 
 | reference path | lines | status | rust counterpart | notes |
 |---|---|---|---|---|
-| tree-list.ts (227), link-hints.ts (299), file-list.ts (84), extension-links.ts (194), code-cell.ts (358) | 1162 | MISSING | — | no Rust counterpart |
-| utils.ts | 109 | PARTIAL | `render/render_utils.rs` | missing `Hasher`, `RenderCache`, `buildTreePrefix`, `getTreeBranch`, `getTreeContinuePrefix`, `padToWidth` |
+| tree-list.ts (227) | 227 | PORTED | `render/tree_list.rs` | `render_tree_list`, `TreeContext` |
+| file-list.ts (84) | 84 | PORTED | `render/file_list.rs` | `render_file_list`, `describe_file_list` |
+| link-hints.ts (299) | 299 | PORTED | `render/link_hints.rs` | `LinkHints`, `viewport_link_targets` |
+| extension-links.ts (194) | 194 | PORTED | `render/extension_links.rs` | `format_extension_link`, `strip_extension_link_markers`, `extension_link_labels` |
+| code-cell.ts (358) | 358 | PORTED | `render/code_cell.rs` | `render_code_cell`, `render_markdown_cell`, `describe_output_block` |
+| utils.ts | 109 | PORTED | `render/render_utils.rs` | `Hasher`, `RenderCache`, tree prefixes, `pad_to_width` |
 | tool-card.ts | 430 | PARTIAL | `render/tool_card.rs` | missing `ToolCardVariant/Content/Section/Snapshot/BuildContext/Options`, `toolCardState`, `framedToolCard` |
-| status-line.ts | 55 | PARTIAL | `render/tool_card.rs` | missing `StatusLineOptions` (`StatusLine` + `render_status_line` present) |
+| status-line.ts | 55 | PORTED | `render/status_line.rs` | `StatusLineOptions`, `render_status_line` |
 | render-utils.ts | 1316 | PARTIAL | `render/render_utils.rs` | missing `disambiguateDisplayLabels`, `setInlineImageMaxColumns/Rows`, `resolveImageOptions`, `PREVIEW_LIMITS`, `DEFAULT_TERMINAL_PREVIEW_LINES`, `FENCE_RE`, `EMPTY_LINK_TARGETS` |
-| output-block.ts | 390 | PARTIAL | `render/output_block.rs` | missing `markFramedBlockComponent`, `isFramedBlockComponent`, `outputStateTone`, `outputStateStatus`, `NativeOutputBlockSection/Options` |
-| output-pane.ts | 385 | PARTIAL | `render/render_utils.rs` | missing `OutputPane` component, `NativeOutputOptions`, `describeOutputLines` |
-| hyperlink.ts | 308 | PARTIAL | `render/hyperlink.rs` | missing `urlLinkSpan`, `FileUriOptions` |
+| output-block.ts | 390 | PARTIAL | `render/output_block.rs` + `render/code_cell.rs` | missing `markFramedBlockComponent`, `isFramedBlockComponent` |
+| output-pane.ts | 385 | PORTED | `render/output_pane.rs` | `OutputPane`, `format_output_pane_lines`, `describe_output_lines` |
+| hyperlink.ts | 308 | PORTED | `render/hyperlink.rs` | `url_link_span`, `file_link_span`, `is_native_link_enabled` |
 | index.ts | 19 | PARTIAL | `render/mod.rs` | barrel |
-| hanging-wrap.ts | 58 | PARTIAL | `render/width_aware_text.rs` | missing `wrapTreeLine`, `wrapGuidedLine` |
+| hanging-wrap.ts | 58 | PORTED | `render/width_aware_text.rs` | `wrap_tree_line`, `wrap_guided_line` |
 | width-aware-text.ts | 97 | PORTED | `render/width_aware_text.rs` | `WidthAwareText` |
 | types.ts | 19 | PORTED | `render/types.rs` + `render_utils.rs` | `TreeContext`, `State` |
 | sixel.ts | 69 | PORTED | `render/sixel.rs` | doc header: port |
-| row-moves.ts | 109 | PORTED | `render/row_moves.rs` | doc header: reference; file not declared in `render/mod.rs` |
+| row-moves.ts | 109 | PORTED | `render/row_moves.rs` | declared in `render/mod.rs` |
 | composite.ts | 64 | PORTED | `render/render_utils.rs` | `composite_line_at` |
 
 ### l/src/prompt — 31 files, 8 278 lines
@@ -141,7 +145,13 @@ Reference tree enumerated: **457 `.ts` files** (contract stated 455; +2 from ful
 
 | reference path | lines | status | rust counterpart | notes |
 |---|---|---|---|---|
-| tone.ts (101), quiet.ts (105), overlay.ts (255), picker.ts (333), icons.ts (184), measure.ts (185), backend.ts (983) | 2146 | MISSING | — | no Rust counterpart (`NativeBackend`, `estimateRows`, `actionHint`, `picker*`, `normalizeIcon*` absent) |
+| tone.ts (101) | 101 | PORTED | `native/tone.rs` | `color_tone`, `tone_color`, `background_chrome` |
+| quiet.ts (105) | 105 | PORTED | `native/quiet.rs` | `quiet_motion`, `QuietSwitches` |
+| overlay.ts (255) | 255 | PORTED | `native/overlay.rs` | `action_hint`, `overlay_card`, `action_button`, `action_bar` |
+| picker.ts (333) | 333 | PORTED | `native/picker.rs` | `picker`, `PickerList`, `select_list_picker` |
+| icons.ts (184) | 184 | PORTED | `native/icons.rs` | `normalize_icon_spans`, `normalize_icon_text`, `normalize_icon_props` |
+| measure.ts (185) | 185 | PORTED | `native/measure.rs` | `estimate_rows`, `MeasureChild` |
+| backend.ts (983) | 983 | MISSING | — | no Rust counterpart (`NativeBackend`) |
 | state.ts | 66 | PARTIAL | `native/state.rs` | missing `isNativeRendering`/`setNativeRendering`, `nativeButtons`/`setNativeButtons`, `nativePacing`/`setNativePacing`, `onNativeRenderingChange` |
 | reconcile.ts | 1131 | PARTIAL | `native/state.rs` | missing `NativeRegions`, `NativeTarget`, `nativeComponentId` |
 | settle.ts | 24 | PARTIAL | `native/state.rs` | missing `settleNative`, `isNativeSettled` (`NativeSettle` present) |
@@ -258,10 +268,10 @@ Reference tree enumerated: **457 `.ts` files** (contract stated 455; +2 from ful
 | l/src/theme | 13 | 5 277 | 4 | 6 | 3 |
 | l/src/status-line | 15 | 7 547 | 1 | 9 | 5 |
 | l/src/setup | 14 | 2 826 | 0 | 0 | 14 |
-| l/src/render | 19 | 4 590 | 5 | 9 | 5 |
+| l/src/render | 19 | 4 590 | 15 | 4 | 0 |
 | l/src/prompt | 31 | 8 278 | 0 | 0 | 31 |
 | l/src/overlays | 82 | 53 702 | 1 | 0 | 81 |
-| l/src/native | 17 | 4 916 | 4 | 6 | 7 |
+| l/src/native | 17 | 4 916 | 10 | 6 | 1 |
 | l/src/multiplexers | 9 | 347 | 0 | 6 | 3 |
 | l/src/html-form | 5 | 3 085 | 0 | 0 | 5 |
 | l/src/components | 41 | 21 391 | 5 | 21 | 15 |
@@ -269,6 +279,6 @@ Reference tree enumerated: **457 `.ts` files** (contract stated 455; +2 from ful
 | l/src/chat | 42 | 15 043 | 0 | 4 | 38 |
 | l/src/charts | 3 | 11 266 | 0 | 0 | 3 |
 | l/src/apps | 26 | 11 800 | 4 | 4 | 18 |
-| **total** | **457** | **209 293** | **42** | **96** | **319** |
+| **total** | **457** | **209 293** | **58** | **91** | **308** |
 
-Key gaps: entire `prompt/`, `setup/`, `charts/`, `html-form/`, `overlays/extensions/`, `components/composer/`, `components/{image,box,cancellable-loader}`, `render/{tree-list,link-hints,file-list,extension-links,code-cell}`, `native/{backend,icons,measure,overlay,picker,quiet,tone}`, and 57 `tools/` modules have no Rust counterpart. `crates/maple-tui/src/render/{row_moves,types}.rs` exist but are not declared in `render/mod.rs`.
+Key gaps: entire `prompt/`, `setup/`, `charts/`, `html-form/`, `overlays/extensions/`, `components/composer/`, `components/{image,box,cancellable-loader}`, `native/backend.ts`, `render/{tool-card,render-utils,output-block}`, and 57 `tools/` modules have no Rust counterpart.

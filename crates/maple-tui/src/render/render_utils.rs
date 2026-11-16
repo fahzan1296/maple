@@ -984,11 +984,10 @@ fn extract_segments(line: &str, before_target: usize, skip_start: usize, after_t
     let mut before = String::new();
     let mut after = String::new();
     let mut column = 0usize;
-    let mut collecting_after = false;
     for token in scan(line) {
         match token {
             Token::Escape(seq) => {
-                if collecting_after || column >= skip_start {
+                if column >= skip_start {
                     after.push_str(seq);
                 } else if column < before_target {
                     before.push_str(seq);
@@ -997,16 +996,17 @@ fn extract_segments(line: &str, before_target: usize, skip_start: usize, after_t
             Token::Text(chunk) => {
                 for grapheme in chunk.graphemes(true) {
                     let width = UnicodeWidthStr::width(grapheme);
-                    if !collecting_after && column < before_target {
+                    if column < before_target {
                         if column + width > before_target {
-                            collecting_after = true;
+                            // A wide grapheme straddling the boundary is
+                            // dropped, matching a strict column slice.
                         } else {
                             before.push_str(grapheme);
                             column += width;
                             continue;
                         }
                     }
-                    if collecting_after && column >= skip_start && visible_width(&after) < after_target {
+                    if column >= skip_start && visible_width(&after) < after_target {
                         if visible_width(&after) + width > after_target {
                             break;
                         }
@@ -1606,5 +1606,16 @@ pub mod tests {
         empty.set(1, "a", 1);
         assert!(!empty.has(1, &"a"));
         assert_eq!(empty.get(1, &"a"), None);
+    }
+
+    #[test]
+    fn composite_line_at_keeps_the_tail_from_column_zero() {
+        let base = "\x1b[4mAlpha Beta\x1b[24m";
+        let overlay = "\x1b[1;7ma\x1b[22;27m";
+        let merged = composite_line_at(base, overlay, 0, 1, 20);
+        assert_eq!(crate::ansi_scan::strip_ansi(&merged).trim_end(), "alpha Beta");
+        // A tag landing mid-label must not erase the head before it.
+        let merged = composite_line_at(base, "\x1b[1;7mb\x1b[22;27m", 6, 1, 20);
+        assert_eq!(crate::ansi_scan::strip_ansi(&merged).trim_end(), "Alpha beta");
     }
 }
