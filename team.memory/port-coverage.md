@@ -112,7 +112,7 @@ Reference tree enumerated: **457 `.ts` files** (contract stated 455; +2 from ful
 | file-list.ts (84) | 84 | PORTED | `render/file_list.rs` | `render_file_list`, `describe_file_list` |
 | link-hints.ts (299) | 299 | PORTED | `render/link_hints.rs` | `LinkHints`, `viewport_link_targets` |
 | extension-links.ts (194) | 194 | PORTED | `render/extension_links.rs` | `format_extension_link`, `strip_extension_link_markers`, `extension_link_labels` |
-| code-cell.ts (358) | 358 | PORTED | `render/code_cell.rs` | `render_code_cell`, `render_markdown_cell`, `describe_output_block` |
+| code-cell.ts (358) | 358 | PORTED | `render/code_cell.rs` | `render_code_cell`, `render_markdown_cell`, `describe_output_block`; documented deviations: no tree-sitter `highlightCode` (plain code lines), `getMarkdownTheme` → `MarkdownTheme::default()` |
 | utils.ts | 109 | PORTED | `render/render_utils.rs` | `Hasher`, `RenderCache`, tree prefixes, `pad_to_width` |
 | tool-card.ts | 430 | PARTIAL | `render/tool_card.rs` | missing `ToolCardVariant/Content/Section/Snapshot/BuildContext/Options`, `toolCardState`, `framedToolCard` |
 | status-line.ts | 55 | PORTED | `render/status_line.rs` | `StatusLineOptions`, `render_status_line` |
