@@ -27,28 +27,24 @@ pub fn process_limited(data: &str, byte_limit: usize) -> PasteOutcome {
         };
     };
     let mut body = String::new();
-    let mut rest = content;
-    loop {
-        if body.len() >= byte_limit {
-            return PasteOutcome {
-                handled: true,
-                paste_content: Some(decode_reencoded_paste_controls(&body)),
-                remaining: rest.to_string(),
-            };
-        }
-        match rest.find(PASTE_END) {
+    let rest = if body.len() >= byte_limit {
+        return PasteOutcome {
+            handled: true,
+            paste_content: Some(decode_reencoded_paste_controls(&body)),
+            remaining: content.to_string(),
+        };
+    } else {
+        match content.find(PASTE_END) {
             Some(index) => {
-                body.push_str(&rest[..index]);
-                rest = &rest[index + PASTE_END.len()..];
-                break;
+                body.push_str(&content[..index]);
+                &content[index + PASTE_END.len()..]
             }
             None => {
-                body.push_str(rest);
-                rest = "";
-                break;
+                body.push_str(content);
+                ""
             }
         }
-    }
+    };
     PasteOutcome {
         handled: true,
         paste_content: Some(decode_reencoded_paste_controls(&body)),
