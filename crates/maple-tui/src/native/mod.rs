@@ -16,6 +16,8 @@ pub mod describe;
 pub mod encode;
 /// The `NativeNode` model, kinds, props and describe context.
 pub mod node;
+/// ANSI-styled text → escape-free spans and plain text.
+pub mod spans;
 /// Native state, settle memo, bounded reconciler and document applier.
 pub mod state;
 
@@ -38,6 +40,10 @@ pub use encode::{
 pub use node::{
     DescribeContext, NativeNode, NativeScreen, NativeSurface, NodeKind, Props, Reveal, RevealAt,
     Scroll, ScrollBy, Span, TableColumn, TableRow, Text, Tone, TreeNode,
+};
+pub use spans::{
+    compact_text, plain_line, plain_text, rows_text, spans_line, style_spans, styled_background,
+    styled_spans,
 };
 pub use state::{
     escape_segment, native_state, same_items, same_props, unescape_segment, ApplyError, Frame,
