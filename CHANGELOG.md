@@ -146,6 +146,13 @@ All notable changes to this project are documented here. The format follows
   the theme symbol key is `icon.maple`; the status-line brand segment id is
   `brand` (`pi` still parses). Wire bytes (APC/OSC/TSP sentinels, `omp.*` roles,
   the OSC 99 app name) are unchanged so the protocol stays 1:1 with `l/`.
+- Clean-room claim corrected (ADR-0001 amended 2026-11-16): maple is a
+  clean-room **re-implementation** — the Rust source is written from scratch and
+  no code is copied or vendored, while behaviour and file/wire formats are
+  reproduced 1:1 from the reference source, which is read as the specification.
+  `README.md`, `PRD.md`, `CONTRIBUTING.md`, `THIRD-PARTY-NOTICES`,
+  `CODE_OF_CONDUCT.md`, `.github/PULL_REQUEST_TEMPLATE.md` and `docs/README.md`
+  updated to match.
 
 ### Notes
 

@@ -24,7 +24,7 @@ considered. Read them before proposing a change to the affected area.
 
 | ADR | Decision |
 |---|---|
-| [`adr/0001-clean-room.md`](adr/0001-clean-room.md) | maple is implemented from scratch; oh-my-pi and pi-messenger are references only |
+| [`adr/0001-clean-room.md`](adr/0001-clean-room.md) | from-scratch Rust re-implementation; oh-my-pi and pi-messenger are read as the specification |
 | [`adr/0002-resource-guard.md`](adr/0002-resource-guard.md) | Runtime resource guard: pre-flight, monitoring, abort at 80% |
 | [`adr/0003-pure-rust.md`](adr/0003-pure-rust.md) | Pure Rust, one binary, no JS runtime; TUI on ratatui + crossterm |
 

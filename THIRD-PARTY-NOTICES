@@ -1,11 +1,12 @@
 # Third-Party Notices
 
-`maple` is a **clean-room implementation**. No source code is copied from,
-vendored from, or derived from the projects below. They were used as reading
-material and as behavior/format references only. All code in this repository is
-written by maple contributors and licensed under MIT (see `LICENSE`).
+`maple` is a **clean-room re-implementation**. No source code is copied or
+vendored from the projects below. Their source is read as the specification:
+behaviour and file/wire formats are reproduced 1:1 in freshly written Rust. All
+code in this repository is written by maple contributors and licensed under MIT
+(see `LICENSE`).
 
-## References (no code reused)
+## References (specification only)
 
 | Project | License | Version read | Used as |
 |---|---|---|---|

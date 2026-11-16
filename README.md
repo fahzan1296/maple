@@ -12,7 +12,7 @@
 
   <p>
     A RAM-efficient, multi-session TUI coding agent.<br />
-    Pure Rust · one binary · clean-room.
+    Pure Rust · one binary · clean-room re-implementation.
   </p>
 
   <!-- Badges -->
@@ -104,11 +104,12 @@
    pre-flight/monitor/abort enforced by the runtime, not just asked of the
    agent.
 
-`maple` is a **clean-room implementation** ([ADR-0001](docs/adr/0001-clean-room.md)):
-it is written from scratch and inspired by
-[oh-my-pi](https://github.com/can1357/oh-my-pi) (TUI/UX, session, edit, memory)
-and [pi-messenger](https://github.com/nicobailon/pi-messenger) (flat cross-session
-mesh). No code is copied from either — see
+`maple` is a **clean-room re-implementation** ([ADR-0001](docs/adr/0001-clean-room.md)):
+every line of Rust is written from scratch, with behaviour and file formats
+reproduced 1:1 from [oh-my-pi](https://github.com/can1357/oh-my-pi) (TUI/UX,
+session, edit, memory) and
+[pi-messenger](https://github.com/nicobailon/pi-messenger) (flat cross-session
+mesh) as the specification. No code is copied or vendored from either — see
 [`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES).
 
 <!-- Project Status -->
@@ -420,7 +421,8 @@ Open questions (naming, crew in v1 or later, platform targets) are tracked in
 
 Contributions are always welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for
 how to get started. Keep the clean-room rule in mind: maple is written from
-scratch, so do not paste code from the reference repositories.
+scratch, so do not paste or vendor code from the reference repositories — read
+them as the specification and write the Rust yourself.
 
 Work follows [`KONTRAK.md`](KONTRAK.md) (AI Operating Contract v7.0): P1
 coordination via pi-messenger, P2 the work itself, aggressive resource limits
@@ -438,9 +440,9 @@ instructions.
 
 - **Is maple a fork of oh-my-pi or pi-messenger?**
 
-  No. It is a clean-room implementation ([ADR-0001](docs/adr/0001-clean-room.md)):
-  written from scratch, with those projects used as reading material and
-  behavioural/format references only.
+  No. It is a clean-room re-implementation ([ADR-0001](docs/adr/0001-clean-room.md)):
+  the Rust source is written from scratch, and those projects are read as the
+  specification for behaviour and formats. No code is copied or vendored.
 
 - **Why reuse the `.pi/messenger` format?**
 

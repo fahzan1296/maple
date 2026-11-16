@@ -15,7 +15,7 @@ appearance, race, religion, or sexual identity and orientation.
 - Be respectful and assume good intent; disagree with ideas, not people.
 - Give and receive constructive criticism without personal attacks.
 - Credit contributions accurately (clean-room rule: say what is yours, what is
-  referenced, and what is copied — see ADR-0001).
+  referenced, and what is reproduced — see ADR-0001).
 - Keep discussions on the technical work, not on identity or lifestyle.
 - Respect the resource limits: a long-running build on a shared host affects
   everyone (`KONTRAK.md` §SOP-RESLIM).

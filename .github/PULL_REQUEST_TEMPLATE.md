@@ -20,7 +20,7 @@
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] User-visible behavior reflected in `README.md` / `PRD.md` / `SECURITY.md`
 - [ ] No secrets, mesh state (`.pi/`), or agent state (`.maple/`) added
-- [ ] No code copied from the reference repositories (clean-room, ADR-0001)
+- [ ] No code copied or vendored from the reference repositories (clean-room re-implementation, ADR-0001)
 - [ ] Resource limits respected while working (`KONTRAK.md` §SOP-RESLIM)
 - [ ] Security-relevant change reviewed against `SECURITY.md`
 
