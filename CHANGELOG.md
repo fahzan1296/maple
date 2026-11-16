@@ -94,6 +94,14 @@ All notable changes to this project are documented here. The format follows
   `with_bg`, `pill`, `chip_fill`, `selection_bg_ansi`, `tint_chip`,
   `soft_pill`); the theme is passed in as a resolved palette instead of a
   global singleton.
+- Engine slice #1: `native::spans` — ANSI-styled text → escape-free spans
+  (`styled_spans`, `plain_text`, `plain_line`, `style_spans`, `compact_text`,
+  `rows_text`, `spans_line`, `styled_background`). Parses CSI/OSC/DCS/APC
+  escapes, reverse-maps SGR to theme tokens, coalesces runs; the theme is
+  passed in instead of read from a global singleton.
+- Engine slice #2: `render::{row_moves, types}` — the unsynchronized row-move
+  finder (`find_row_move`, `apply_row_move`, `row_move_sequence`) reproducing
+  the reference's out-of-window gain drop via signed bounds, plus `TreeContext`.
 
 ### Changed
 
