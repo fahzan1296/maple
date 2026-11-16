@@ -24,6 +24,58 @@ pub enum ScrollAnchor {
     /// Keep the trailing rows visible.
     End,
 }
+/// Which edge a revealed range prefers when it fills the whole viewport.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScrollRangeOversized {
+    /// Keep the nearest edge of the range visible.
+    #[default]
+    Nearest,
+    /// Prefer the leading edge of the range.
+    Start,
+}
+
+/// Whether a revealed range re-applies on every geometry change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScrollRangeMode {
+    /// Reveal again whenever the range or viewport geometry changes.
+    #[default]
+    Selection,
+    /// Reveal only the first time the keyed range is seen.
+    Once,
+}
+
+/// A selected logical range revealed once or whenever its geometry changes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScrollRangeAnchor {
+    /// Key identifying the selection; unchanged geometry is not re-revealed.
+    pub id: String,
+    /// First logical row of the range.
+    pub start: usize,
+    /// Exclusive end of the range.
+    pub end: usize,
+    /// Rows of context kept around the range. Defaults to 1.
+    pub margin: Option<usize>,
+    /// How the range is aligned inside the viewport. Defaults to nearest.
+    pub alignment: Option<ViewportAlignment>,
+    /// Reveal policy. Defaults to [`ScrollRangeMode::Selection`].
+    pub mode: Option<ScrollRangeMode>,
+    /// Edge preference when the range is at least as tall as the viewport.
+    pub oversized: Option<ScrollRangeOversized>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RangeSnapshot {
+    id: String,
+    start: usize,
+    end: usize,
+    margin: usize,
+    alignment: ViewportAlignment,
+    mode: ScrollRangeMode,
+    oversized: ScrollRangeOversized,
+    width: u16,
+    height: usize,
+    total_rows: usize,
+}
 
 /// Fixed-height, scrollable window over row content.
 pub struct ScrollView {
@@ -42,6 +94,7 @@ pub struct ScrollView {
     fast_scroll_lines: usize,
     follow_tail: bool,
     anchor: ScrollAnchor,
+    range_snapshot: Option<RangeSnapshot>,
     active_row: Option<usize>,
     active_alignment: ViewportAlignment,
 }
@@ -72,6 +125,7 @@ impl ScrollView {
             fast_scroll_lines: 5,
             follow_tail: false,
             anchor: ScrollAnchor::Start,
+            range_snapshot: None,
             active_row: None,
             active_alignment: ViewportAlignment::Nearest,
         }
@@ -230,6 +284,122 @@ impl ScrollView {
         self.anchor = anchor;
     }
 
+
+    /// Map a local viewport row to its logical content row.
+    pub fn logical_row_at(&self, local_row: usize) -> Option<usize> {
+        let range = self.visible_range();
+        let logical = range.start.checked_add(local_row)?;
+        (logical < range.end).then_some(logical)
+    }
+
+    /// Map a visible logical content row to its local viewport row.
+    pub fn local_row_for(&self, logical_row: usize) -> Option<usize> {
+        let range = self.visible_range();
+        (logical_row >= range.start && logical_row < range.end).then(|| logical_row - range.start)
+    }
+
+    /// Whether a keyed range has already been revealed successfully.
+    pub fn has_revealed_range(&self, id: &str) -> bool {
+        self.range_snapshot
+            .as_ref()
+            .map_or(false, |snapshot| snapshot.id == id)
+    }
+
+    /// Reveal a changed selection without snapping manual scrolling back on
+    /// unchanged renders. Passing `None` forgets the previous range.
+    pub fn reveal_range(&mut self, anchor: Option<ScrollRangeAnchor>, width: u16) -> bool {
+        let Some(anchor) = anchor else {
+            self.range_snapshot = None;
+            return false;
+        };
+        if anchor.end <= anchor.start {
+            return false;
+        }
+        let mode = anchor.mode.unwrap_or_default();
+        let alignment = anchor.alignment.unwrap_or_default();
+        let margin = anchor.margin.unwrap_or(1);
+        let oversized = anchor.oversized.unwrap_or_default();
+        let total_rows = self.content_height();
+        if let Some(previous) = &self.range_snapshot {
+            let unchanged = previous.id == anchor.id
+                && previous.mode == mode
+                && previous.alignment == alignment
+                && previous.margin == margin
+                && previous.oversized == oversized
+                && (mode == ScrollRangeMode::Once
+                    || (previous.start == anchor.start
+                        && previous.end == anchor.end
+                        && previous.width == width
+                        && previous.height == self.height
+                        && previous.total_rows == total_rows));
+            if unchanged {
+                return false;
+            }
+        }
+        let top = anchor.start.saturating_sub(margin);
+        let bottom = (anchor.end + margin).min(total_rows);
+        let visible = self.visible_range();
+        let next = match alignment {
+            ViewportAlignment::Start => scroll_offset_for_row(
+                self.scroll_offset,
+                top,
+                total_rows,
+                self.height,
+                ViewportAlignment::Start,
+            ),
+            ViewportAlignment::End => scroll_offset_for_row(
+                self.scroll_offset,
+                top.max(bottom.saturating_sub(1)),
+                total_rows,
+                self.height,
+                ViewportAlignment::End,
+            ),
+            ViewportAlignment::Center => scroll_offset_for_row(
+                self.scroll_offset,
+                (anchor.start + anchor.end - 1) / 2,
+                total_rows,
+                self.height,
+                ViewportAlignment::Center,
+            ),
+            ViewportAlignment::Nearest => {
+                if top < visible.start
+                    || (oversized == ScrollRangeOversized::Start && bottom - top >= self.height)
+                {
+                    scroll_offset_for_row(
+                        self.scroll_offset,
+                        top,
+                        total_rows,
+                        self.height,
+                        ViewportAlignment::Start,
+                    )
+                } else if bottom > visible.end {
+                    scroll_offset_for_row(
+                        self.scroll_offset,
+                        top.max(bottom.saturating_sub(1)),
+                        total_rows,
+                        self.height,
+                        ViewportAlignment::End,
+                    )
+                } else {
+                    self.scroll_offset
+                }
+            }
+        };
+        self.scroll_to(next);
+        self.range_snapshot = Some(RangeSnapshot {
+            id: anchor.id,
+            start: anchor.start,
+            end: anchor.end,
+            margin,
+            alignment,
+            mode,
+            oversized,
+            width,
+            height: self.height,
+            total_rows,
+        });
+        true
+    }
     /// Show or hide the scrollbar column.
     pub fn set_show_scrollbar(&mut self, show: bool) {
         self.scrollbar = if show {
@@ -599,5 +769,54 @@ mod tests {
         grown.extend((10..20).map(|index| format!("row{index}")));
         view.set_lines(grown);
         assert_eq!(view.scroll_offset(), 17);
+    }
+
+    #[test]
+    fn logical_rows_map_through_offset() {
+        let mut view = ScrollView::new(ten_rows(), 3);
+        view.scroll_to(4);
+        assert_eq!(view.logical_row_at(0), Some(4));
+        assert_eq!(view.logical_row_at(2), Some(6));
+        assert_eq!(view.logical_row_at(3), None);
+        assert_eq!(view.local_row_for(4), Some(0));
+        assert_eq!(view.local_row_for(3), None);
+    }
+
+    #[test]
+    fn reveal_range_skips_unchanged_geometry() {
+        let mut view = ScrollView::new(ten_rows(), 3);
+        let anchor = || ScrollRangeAnchor {
+            id: "sel".to_string(),
+            start: 8,
+            end: 10,
+            margin: None,
+            alignment: None,
+            mode: None,
+            oversized: None,
+        };
+        assert!(view.reveal_range(Some(anchor()), 40));
+        assert_eq!(view.scroll_offset(), 7);
+        assert!(view.has_revealed_range("sel"));
+        assert!(!view.reveal_range(Some(anchor()), 40));
+        assert_eq!(view.scroll_offset(), 7);
+        assert!(view.reveal_range(Some(anchor()), 80));
+    }
+
+    #[test]
+    fn reveal_range_prefers_leading_edge_when_oversized() {
+        let mut view = ScrollView::new(ten_rows(), 3);
+        let anchor = ScrollRangeAnchor {
+            id: "big".to_string(),
+            start: 2,
+            end: 9,
+            margin: None,
+            alignment: None,
+            mode: None,
+            oversized: Some(ScrollRangeOversized::Start),
+        };
+        assert!(view.reveal_range(Some(anchor), 40));
+        assert_eq!(view.scroll_offset(), 1);
+        assert!(!view.reveal_range(None, 40));
+        assert!(!view.has_revealed_range("big"));
     }
 }

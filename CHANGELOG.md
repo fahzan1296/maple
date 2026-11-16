@@ -71,6 +71,29 @@ All notable changes to this project are documented here. The format follows
 - Apps slice #2: `apps::debug::terminal_info` (terminal capability snapshot and
   the debug-menu report) plus `CellDimensions` in maple-tui
   (`cell_dimensions` / `set_cell_dimensions`).
+- Apps slice #3: `apps::debug::viewer_frame` (rounded panel, fixed header and
+  footer rows, persistent scroll viewport with selection reveal) plus the
+  `ScrollView` reveal-range API (`ScrollRangeAnchor`, `reveal_range`,
+  `logical_row_at`).
+- Apps slice #4: `apps::debug::log_viewer` model (filter, pagination, expansion,
+  selection, session boundary marker, older-history paging) plus
+  `split_log_text` / `build_log_copy_payload`.
+- Apps slice #5: `apps::ps_data` — `omp ps` table data (broker scopes, daemon
+  rows, `format_command` / `collapse_command` / `daemon_label`, colored state,
+  flags and uptime cells, `table_cells` aligned with `TABLE_HEADER`,
+  `scope_header`), with the daemon state types declared in-module until the
+  daemon port lands.
+- Apps slice #6: `apps::autoresearch_data` — experiment baseline selection
+  (`format_elapsed`, `is_better`, `current_results`, `find_baseline_result`,
+  `find_baseline_metric`, `find_baseline_run_number`,
+  `find_baseline_secondary`) plus the `ExperimentResult` / `MetricDef` /
+  `MetricDirection` / `AsiValue` types, declared in-module until the
+  `tools/autoresearch` port lands.
+- Apps slice #7: `apps::git::colors` — truecolor git chrome helpers
+  (`GitPalette`, `hex_channels`, `bg_ansi_hex` / `fg_ansi_hex`, `luminance`,
+  `with_bg`, `pill`, `chip_fill`, `selection_bg_ansi`, `tint_chip`,
+  `soft_pill`); the theme is passed in as a resolved palette instead of a
+  global singleton.
 
 ### Changed
 
