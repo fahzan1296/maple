@@ -6,11 +6,17 @@
 //! width is known. [`WidthAwareText`] defers that decision to `render(width)`:
 //! it computes the same content width the inner `Text` uses, hands it to a
 //! formatter closure, and delegates margins and wrapping to `Text`.
+//!
+//! [`wrap_tree_line`] and [`wrap_guided_line`] continue the port of
+//! `l/src/render/hanging-wrap.ts`; the rest of that module lives in
+//! [`wrap_prefixed_line`].
 
 use crate::component::Component;
 use crate::components::text::Text;
-use crate::render::render_utils::get_padding_x;
+use crate::native::spans::plain_text;
+use crate::render::render_utils::{get_padding_x, paint};
 use crate::text_shape::{visible_width, wrap_text_with_ansi};
+use crate::theme::{Theme, ThemeColor};
 
 /// Text reformatted for the width it is about to be drawn at.
 pub struct WidthAwareText {
@@ -123,9 +129,89 @@ pub fn wrap_with_gutter(content: &str, gutter: usize, width: usize) -> Vec<Strin
     wrap_prefixed_line(&continuation, &continuation, content, width)
 }
 
+/// End of the leading run of spaces, `vertical` guides and SGR colour escapes
+/// that a tree detail row hangs beneath.
+fn guide_run_end(line: &str, vertical: &str) -> usize {
+    let mut index = 0;
+    while index < line.len() {
+        if line.as_bytes()[index] == b' ' {
+            index += 1;
+        } else if !vertical.is_empty() && line[index..].starts_with(vertical) {
+            index += vertical.len();
+        } else {
+            let rest = &line[index..];
+            let escape_len = rest
+                .strip_prefix("\x1b[")
+                .and_then(|body| body.find('m'))
+                .filter(|end| rest[2..2 + *end].bytes().all(|c| c.is_ascii_digit() || c == b';'))
+                .map(|end| end + 3);
+            match escape_len {
+                Some(len) => index += len,
+                None => break,
+            }
+        }
+    }
+    index
+}
+
+/// Preserve a tree connector's ancestor guides while hanging a long node beneath
+/// its label. `None` when the line does not open with such a connector.
+///
+/// Reference: `l/src/render/hanging-wrap.ts`.
+pub fn wrap_tree_line(line: &str, width: usize, theme: &Theme) -> Option<Vec<String>> {
+    let tree = theme.tree();
+    for (connector, is_last) in [(&tree.branch, false), (&tree.last, true)] {
+        let marker = paint(theme, ThemeColor::Dim, connector);
+        let Some(index) = line.find(&marker) else {
+            continue;
+        };
+        let before = &line[..index];
+        let guides_only = plain_text(before).replace(&tree.vertical, "");
+        if !guides_only.chars().all(|c| c == ' ') {
+            continue;
+        }
+        let end = index + marker.len() + 1;
+        if line.as_bytes().get(end.wrapping_sub(1)) != Some(&b' ') {
+            continue;
+        }
+        let connector_width = visible_width(connector);
+        let guide = if is_last {
+            " ".repeat(connector_width)
+        } else {
+            let padding = connector_width.saturating_sub(visible_width(&tree.vertical));
+            format!(
+                "{}{}",
+                paint(theme, ThemeColor::Dim, &tree.vertical),
+                " ".repeat(padding)
+            )
+        };
+        return Some(wrap_prefixed_line(
+            &line[..end],
+            &format!("{before}{guide} "),
+            &line[end..],
+            width,
+        ));
+    }
+    None
+}
+
+/// Hang a tree row beneath its connector, or a connector-less detail row beneath
+/// its guide rails.
+///
+/// Reference: `l/src/render/hanging-wrap.ts`.
+pub fn wrap_guided_line(line: &str, width: usize, theme: &Theme) -> Vec<String> {
+    if let Some(rows) = wrap_tree_line(line, width, theme) {
+        return rows;
+    }
+    let prefix_end = guide_run_end(line, &theme.tree().vertical);
+    let prefix = &line[..prefix_end];
+    wrap_prefixed_line(prefix, prefix, &line[prefix_end..], width)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::{builtin, create_theme, CreateThemeOptions};
 
     #[test]
     fn width_aware_text_formats_once_per_width() {
@@ -175,5 +261,59 @@ mod tests {
     fn narrow_widths_never_overflow() {
         let rows = wrap_prefixed_line(">>> ", "    ", "abc", 0);
         assert_eq!(rows, vec![""]);
+    }
+
+    fn test_theme() -> Theme {
+        create_theme(
+            builtin::builtin_theme_json("dark").expect("embedded dark theme exists"),
+            CreateThemeOptions::default(),
+        )
+        .expect("embedded dark theme resolves")
+    }
+
+    #[test]
+    fn tree_line_hangs_beneath_the_branch_connector() {
+        let theme = test_theme();
+        let tree = theme.tree();
+        let marker = paint(&theme, ThemeColor::Dim, &tree.branch);
+        let guide = format!(
+            "{}{} ",
+            paint(&theme, ThemeColor::Dim, &tree.vertical),
+            " ".repeat(visible_width(&tree.branch) - visible_width(&tree.vertical))
+        );
+        let rows =
+            wrap_tree_line(&format!("{marker} abcdefghij"), 8, &theme).expect("tree connector found");
+        assert_eq!(rows, vec![format!("{marker} abcde"), format!("{guide}fghij")]);
+    }
+
+    #[test]
+    fn tree_line_rejects_a_non_guide_prefix() {
+        let theme = test_theme();
+        let tree = theme.tree();
+        let marker = paint(&theme, ThemeColor::Dim, &tree.branch);
+        assert!(wrap_tree_line(&format!("label {marker} abc"), 12, &theme).is_none());
+    }
+
+    #[test]
+    fn guided_line_hangs_on_vertical_rails() {
+        let theme = test_theme();
+        let vertical = theme.tree().vertical;
+        assert_eq!(
+            wrap_guided_line(&format!("{vertical}   abcdef"), 6, &theme),
+            vec![
+                format!("{vertical}   ab"),
+                format!("{vertical}   cd"),
+                format!("{vertical}   ef")
+            ]
+        );
+    }
+
+    #[test]
+    fn guided_line_without_a_prefix_wraps_at_the_width() {
+        let theme = test_theme();
+        assert_eq!(
+            wrap_guided_line("abcdefgh", 5, &theme),
+            vec!["abcde", "fgh"]
+        );
     }
 }

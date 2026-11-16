@@ -6,8 +6,11 @@
 
 pub mod context;
 pub mod diff;
+pub mod dynamic_border;
+pub mod live_board;
 pub mod message;
 pub mod overlay_box;
+pub mod visual_truncate;
 
 pub use context::{
     context_meter_thresholds, context_usage_level, format_context_usage, plan_context_map,
@@ -25,3 +28,6 @@ pub use overlay_box::{
     bottom_border, divider, divider_split, split_body_width, split_divider_col, split_row,
     top_border, top_border_split, OverlayPanel, OverlayTheme, PanelDivider, PanelRows,
 };
+pub use dynamic_border::{BorderLabel, DynamicBorder};
+pub use live_board::{LiveBoard, LiveBoardOutput, RENDER_INTERVAL_MS};
+pub use visual_truncate::{truncate_to_visual_lines, VisualTruncateResult};

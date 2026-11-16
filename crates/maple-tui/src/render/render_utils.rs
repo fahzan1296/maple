@@ -5,10 +5,33 @@
 //! for display and never touch I/O. The few process-wide knobs (tight-layout
 //! padding, the expand key hint, sixel passthrough) are set once at startup by
 //! the embedder; `render` only reads them.
+//!
+//! Reference: `l/src/render/utils.ts` contributes the tree-prefix guides, the
+//! background-aware width fitter, the incremental cache-key hasher, and the
+//! bounded render cache; `l/src/render/render-utils.ts` contributes the other
+//! primitives in this file.
+//!
+//! Deviations:
+//! - `pad_to_width` truncates with the Unicode ellipsis and returns its input
+//!   unchanged at width zero, matching `padToWidth`. Padding is delegated to
+//!   the pad-only [`crate::text_shape::pad_to_width`], which leaves wide input
+//!   untouched; the two are complementary entry points, not wrappers.
+//! - `Hasher` uses FNV-1a 64 rather than `Bun.hash.xxHash64`: the crate has no
+//!   hashing dependency and keys need determinism, not collision resistance.
+//!   `update` is the reference's `str` feed; `update_flag`, `update_u32`,
+//!   `update_u64`, and `update_optional` keep its byte encodings; `digest_u32`
+//!   exposes the low 32 bits.
+//! - `RenderCache` implements the LRU in-crate (the reference's
+//!   `@oh-my-pi/pi-utils/lru` is not vendored): least-recently-used evicts
+//!   first, re-setting a key refreshes it, and misses allocate nothing.
+//! - `get_tree_branch` and `get_tree_continue_prefix` take `(is_last, theme)`,
+//!   exactly as every reference call site does; the reference has no
+//!   depth/`TreeContext` overload to port.
 
+use std::collections::{HashMap, VecDeque};
+use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use unicode_segmentation::UnicodeSegmentation;
-
 
 use crate::ansi_scan::{scan, Token};
 use crate::style::{Color, Style};
@@ -296,6 +319,33 @@ pub fn pad_or_truncate_ansi(text: &str, width: usize, bg_ansi: Option<&str>) -> 
     match bg_ansi {
         Some(ansi) => apply_background_ansi(&fitted, ansi),
         None => fitted,
+    }
+}
+
+/// Fit `text` to exactly `width` display columns, then optionally tint the
+/// whole field with a background styler.
+///
+/// Reference: `l/src/render/utils.ts::padToWidth`. Short text is padded, wide
+/// text is cut with the Unicode ellipsis, and a zero width returns the input
+/// unchanged (still tinted when `bg` is given). Padding itself is delegated
+/// to [`crate::text_shape::pad_to_width`]; that helper is the pad-only entry
+/// point and deliberately leaves wide input untouched.
+pub fn pad_to_width(text: &str, width: usize, bg: Option<&dyn Fn(&str) -> String>) -> String {
+    let fitted = if width == 0 || visible_width(text) == width {
+        text.to_string()
+    } else if visible_width(text) < width {
+        crate::text_shape::pad_to_width(text, width)
+    } else {
+        truncate_to_width(text, width, Ellipsis::Unicode)
+    };
+    let drift = width.saturating_sub(visible_width(&fitted));
+    let mut padded = fitted;
+    if drift > 0 {
+        padded.extend(std::iter::repeat_n(' ', drift));
+    }
+    match bg {
+        Some(styler) => styler(&padded),
+        None => padded,
     }
 }
 
@@ -979,14 +1029,247 @@ fn extract_segments(line: &str, before_target: usize, skip_start: usize, after_t
     }
 }
 
+// ── Tree guides ─────────────────────────────────────────────────────────────
+
+/// Build indentation and continuing branches for ancestor levels.
+///
+/// Each `true` marks an ancestor with a following sibling and emits the
+/// theme's vertical guide plus two spaces; `false` emits three blank columns.
+///
+/// Reference: `l/src/render/utils.ts::buildTreePrefix`.
+pub fn build_tree_prefix(ancestors: &[bool], theme: &Theme) -> String {
+    let tree = theme.tree();
+    let mut prefix = String::with_capacity(ancestors.len() * 3);
+    for &has_next in ancestors {
+        if has_next {
+            prefix.push_str(&tree.vertical);
+            prefix.push_str("  ");
+        } else {
+            prefix.push_str("   ");
+        }
+    }
+    prefix
+}
+
+/// The branch glyph for a final or continuing tree item.
+///
+/// Reference: `l/src/render/utils.ts::getTreeBranch`.
+pub fn get_tree_branch(is_last: bool, theme: &Theme) -> String {
+    let tree = theme.tree();
+    if is_last {
+        tree.last
+    } else {
+        tree.branch
+    }
+}
+
+/// The continuation prefix drawn before a tree item's wrapped lines.
+///
+/// Reference: `l/src/render/utils.ts::getTreeContinuePrefix`.
+pub fn get_tree_continue_prefix(is_last: bool, theme: &Theme) -> String {
+    if is_last {
+        "   ".to_string()
+    } else {
+        format!("{}  ", theme.tree().vertical)
+    }
+}
+
+// ── Render caches ───────────────────────────────────────────────────────────
+
+/// Incremental 64-bit key builder for render-cache keys.
+///
+/// Deviation: the reference chains `Bun.hash.xxHash64` (seed 0) over each fed
+/// value. This port uses FNV-1a 64 because the crate carries no hashing
+/// dependency and cache keys need determinism, not collision resistance. The
+/// feeds keep the reference encodings: strings are length-prefixed
+/// (little-endian u32), integers use little-endian fixed width, booleans hash
+/// one byte (`1` = true, `0` = false), and an absent optional hashes a `0xff`
+/// sentinel byte.
+#[derive(Clone, Debug)]
+pub struct Hasher {
+    state: u64,
+}
+
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+impl Default for Hasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Hasher {
+    /// Start a fresh hash.
+    pub fn new() -> Self {
+        Self {
+            state: FNV_OFFSET_BASIS,
+        }
+    }
+
+    fn mix(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.state ^= u64::from(byte);
+            self.state = self.state.wrapping_mul(FNV_PRIME);
+        }
+    }
+
+    fn mix_u32(&mut self, value: u32) {
+        self.mix(&value.to_le_bytes());
+    }
+
+    fn mix_u64(&mut self, value: u64) {
+        self.mix(&value.to_le_bytes());
+    }
+
+    /// Feed a string tag (the reference's `str` feed, length included).
+    pub fn update(&mut self, tag: &str) -> &mut Self {
+        self.mix_u32(tag.len() as u32);
+        self.mix(tag.as_bytes());
+        self
+    }
+
+    /// Feed an unsigned 32-bit integer.
+    pub fn update_u32(&mut self, value: u32) -> &mut Self {
+        self.mix_u32(value);
+        self
+    }
+
+    /// Feed a 64-bit integer.
+    pub fn update_u64(&mut self, value: u64) -> &mut Self {
+        self.mix_u64(value);
+        self
+    }
+
+    /// Feed a boolean as one byte (`1` = true, `0` = false).
+    pub fn update_flag(&mut self, value: bool) -> &mut Self {
+        self.mix(&[u8::from(value)]);
+        self
+    }
+
+    /// Feed an optional string; `None` hashes the reference's `0xff` sentinel.
+    pub fn update_optional(&mut self, value: Option<&str>) -> &mut Self {
+        match value {
+            Some(tag) => self.mix(tag.as_bytes()),
+            None => self.mix(&[0xff]),
+        }
+        self
+    }
+
+    /// The final 64-bit digest.
+    pub fn digest(&self) -> u64 {
+        self.state
+    }
+
+    /// The low 32 bits of the digest, the compact cache-key form.
+    pub fn digest_u32(&self) -> u32 {
+        self.state as u32
+    }
+}
+
+/// Bounded least-recently-used cache for rendered output.
+///
+/// Entries are keyed by `(hash, key)`: `hash` identifies a renderer (the
+/// [`Hasher::digest_u32`] of its tag) and `key` identifies that renderer's
+/// inputs, so independent renderers can share one cache without colliding on
+/// `key` alone.
+///
+/// Semantics: setting an existing key replaces its value and marks it most
+/// recently used; inserting past `limit` evicts the least recently used entry
+/// first. A `get` hit refreshes recency, a miss returns `None` without
+/// allocating or disturbing the order, and `has` checks presence without
+/// refreshing. A `limit` of zero retains nothing.
+///
+/// Deviation: the reference keeps one entry per component and uses the
+/// external `@oh-my-pi/pi-utils/lru`, which is not vendored here, so the LRU
+/// lives in-crate with the semantics above.
+pub struct RenderCache<K, V> {
+    limit: usize,
+    order: VecDeque<(u32, K)>,
+    entries: HashMap<(u32, K), V>,
+}
+
+impl<K: Clone + Eq + Hash, V> RenderCache<K, V> {
+    /// Create a cache holding at most `limit` entries.
+    pub fn new(limit: usize) -> Self {
+        Self {
+            limit,
+            order: VecDeque::new(),
+            entries: HashMap::new(),
+        }
+    }
+
+    /// The maximum number of entries retained.
+    pub fn limit(&self) -> usize {
+        self.limit
+    }
+
+    /// Fetch the value for `(hash, key)`, marking it most recently used.
+    pub fn get(&mut self, hash: u32, key: &K) -> Option<&V> {
+        let composite = (hash, key.clone());
+        if !self.entries.contains_key(&composite) {
+            return None;
+        }
+        self.touch(&composite);
+        self.entries.get(&composite)
+    }
+
+    /// Insert or replace the value for `(hash, key)`, evicting the least
+    /// recently used entry when the cache is full.
+    pub fn set(&mut self, hash: u32, key: K, value: V) {
+        if self.limit == 0 {
+            return;
+        }
+        let composite = (hash, key);
+        if self.entries.insert(composite.clone(), value).is_some() {
+            self.touch(&composite);
+        } else {
+            self.order.push_back(composite);
+        }
+        while self.order.len() > self.limit {
+            match self.order.pop_front() {
+                Some(evicted) => {
+                    self.entries.remove(&evicted);
+                }
+                None => break,
+            }
+        }
+    }
+
+    /// Whether `(hash, key)` is cached, without changing recency.
+    pub fn has(&self, hash: u32, key: &K) -> bool {
+        self.entries.contains_key(&(hash, key.clone()))
+    }
+
+    /// Drop every entry.
+    pub fn clear(&mut self) {
+        self.order.clear();
+        self.entries.clear();
+    }
+
+    fn touch(&mut self, key: &(u32, K)) {
+        if let Some(index) = self.order.iter().position(|entry| entry == key) {
+            self.order.remove(index);
+        }
+        self.order.push_back(key.clone());
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::render::types::TreeContext;
+    use crate::theme::color::{ColorMode, ColorValue};
+    use crate::theme::schema::ColorMap;
+    use crate::theme::symbols::{NormalizedSpinnerFrames, SymbolPreset};
+
     /// A resolved theme for renderer tests, mirroring `theme_class`'s sample.
     pub fn sample_theme() -> Theme {
-        use crate::theme::color::{ColorMode, ColorValue};
-        use crate::theme::schema::ColorMap;
-        use crate::theme::symbols::{NormalizedSpinnerFrames, SymbolPreset};
+        theme_with_preset(SymbolPreset::Unicode)
+    }
+
+    /// A resolved theme using `preset` for symbol-dependent assertions.
+    fn theme_with_preset(preset: SymbolPreset) -> Theme {
 
         let mut fg = ColorMap::new();
         for (key, hex) in [
@@ -1027,7 +1310,7 @@ pub mod tests {
             &fg,
             &bg,
             ColorMode::TrueColor,
-            SymbolPreset::Unicode,
+            preset,
             &overrides,
             &NormalizedSpinnerFrames::default(),
             &[],
@@ -1153,5 +1436,175 @@ pub mod tests {
             get_sixel_line_mask(&lines),
             vec![false, true, true, true]
         );
+    }
+
+    fn tint(text: &str) -> String {
+        format!("<{text}>")
+    }
+
+    #[test]
+    fn build_tree_prefix_selects_a_glyph_per_ancestor() {
+        let unicode = sample_theme();
+        let ascii = theme_with_preset(SymbolPreset::Ascii);
+
+        assert_eq!(build_tree_prefix(&[], &unicode), "");
+        assert_eq!(build_tree_prefix(&[true], &unicode), "│  ");
+        assert_eq!(build_tree_prefix(&[false], &unicode), "   ");
+        assert_eq!(
+            build_tree_prefix(&[true, false, true], &unicode),
+            "│     │  "
+        );
+        assert_eq!(build_tree_prefix(&[false, false], &unicode), "      ");
+        assert_eq!(build_tree_prefix(&[true], &ascii), "|  ");
+        assert_eq!(
+            build_tree_prefix(&[true, false, true], &ascii),
+            "|     |  "
+        );
+    }
+
+    #[test]
+    fn tree_guides_round_trip_through_context() {
+        let theme = sample_theme();
+        let rails = [true, false];
+        let last = true;
+        let ctx = TreeContext {
+            index: 2,
+            is_last: last,
+            depth: rails.len(),
+            theme: theme.clone(),
+            prefix: format!(
+                "{}{} ",
+                build_tree_prefix(&rails, &theme),
+                get_tree_branch(last, &theme)
+            ),
+            continue_prefix: get_tree_continue_prefix(last, &theme),
+            prefix_width: None,
+        };
+
+        assert_eq!(ctx.prefix, "│     └─ ");
+        assert_eq!(ctx.continue_prefix, "   ");
+        assert_eq!(
+            visible_width(&ctx.prefix),
+            rails.len() * 3 + visible_width(&get_tree_branch(last, &theme)) + 1
+        );
+
+        let continuing = TreeContext {
+            is_last: false,
+            prefix: format!(
+                "{}{} ",
+                build_tree_prefix(&rails, &theme),
+                get_tree_branch(false, &theme)
+            ),
+            continue_prefix: get_tree_continue_prefix(false, &theme),
+            ..ctx
+        };
+        assert_eq!(continuing.prefix, "│     ├─ ");
+        assert_eq!(continuing.continue_prefix, "│  ");
+        assert!(!continuing.is_last);
+    }
+
+    #[test]
+    fn pad_to_width_fits_both_directions_and_tints() {
+        assert_eq!(pad_to_width("abc", 5, None), "abc  ");
+        assert_eq!(pad_to_width("abc", 3, None), "abc");
+        assert_eq!(pad_to_width("abc", 0, None), "abc");
+        assert_eq!(pad_to_width("abcdef", 3, None), "ab…");
+        assert_eq!(pad_to_width("日本", 5, None), "日本 ");
+        assert_eq!(pad_to_width("日本語", 3, None), "日…");
+        assert_eq!(
+            pad_to_width("\x1b[31mabc\x1b[0m", 5, None),
+            "\x1b[31mabc\x1b[0m  "
+        );
+        assert_eq!(pad_to_width("abc", 5, Some(&tint)), "<abc  >");
+        assert_eq!(pad_to_width("abcdef", 3, Some(&tint)), "<ab…>");
+        assert_eq!(pad_to_width("abc", 0, Some(&tint)), "<abc>");
+    }
+
+    #[test]
+    fn hasher_is_deterministic_and_tag_sensitive() {
+        let find = Hasher::new().update("find").digest_u32();
+        assert_eq!(find, Hasher::new().update("find").digest_u32());
+        assert_ne!(find, Hasher::new().update("glob").digest_u32());
+
+        let chained = Hasher::new()
+            .update_flag(true)
+            .update_u32(80)
+            .update_optional(Some("expanded"))
+            .update("tail")
+            .digest_u32();
+        assert_eq!(
+            chained,
+            Hasher::new()
+                .update_flag(true)
+                .update_u32(80)
+                .update_optional(Some("expanded"))
+                .update("tail")
+                .digest_u32()
+        );
+        assert_ne!(
+            chained,
+            Hasher::new()
+                .update_flag(false)
+                .update_u32(80)
+                .update_optional(Some("expanded"))
+                .update("tail")
+                .digest_u32()
+        );
+        assert_eq!(
+            chained,
+            Hasher::new()
+                .update_flag(true)
+                .update_u32(80)
+                .update_optional(Some("expanded"))
+                .update("tail")
+                .digest() as u32
+        );
+        assert_ne!(
+            Hasher::new().update_optional(None).digest_u32(),
+            Hasher::new().update_optional(Some("")).digest_u32()
+        );
+    }
+
+    #[test]
+    fn render_cache_evicts_least_recently_used() {
+        let mut cache = RenderCache::new(2);
+        assert_eq!(cache.limit(), 2);
+        cache.set(1, "a", "alpha");
+        cache.set(1, "b", "beta");
+        assert_eq!(cache.get(1, &"a"), Some(&"alpha"));
+        cache.set(1, "c", "gamma");
+        assert!(cache.has(1, &"a"));
+        assert!(!cache.has(1, &"b"));
+        assert!(cache.has(1, &"c"));
+    }
+
+    #[test]
+    fn render_cache_normalizes_keys_and_ignores_misses() {
+        let mut cache = RenderCache::new(2);
+        cache.set(1, "a", 1);
+        cache.set(1, "b", 2);
+        cache.set(1, "a", 10);
+        assert_eq!(cache.get(1, &"a"), Some(&10));
+        assert_eq!(cache.get(1, &"missing"), None);
+        cache.set(2, "a", 20);
+        assert!(cache.has(1, &"a"));
+        assert!(!cache.has(1, &"b"));
+        assert!(cache.has(2, &"a"));
+    }
+
+    #[test]
+    fn render_cache_clear_and_zero_limit() {
+        let mut cache = RenderCache::new(1);
+        cache.set(1, "a", 1);
+        assert!(cache.has(1, &"a"));
+        cache.clear();
+        assert!(!cache.has(1, &"a"));
+        assert_eq!(cache.get(1, &"a"), None);
+
+        let mut empty = RenderCache::<&str, i32>::new(0);
+        assert_eq!(empty.limit(), 0);
+        empty.set(1, "a", 1);
+        assert!(!empty.has(1, &"a"));
+        assert_eq!(empty.get(1, &"a"), None);
     }
 }

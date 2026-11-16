@@ -102,6 +102,18 @@ All notable changes to this project are documented here. The format follows
 - Engine slice #2: `render::{row_moves, types}` — the unsynchronized row-move
   finder (`find_row_move`, `apply_row_move`, `row_move_sequence`) reproducing
   the reference's out-of-window gain drop via signed bounds, plus `TreeContext`.
+- Engine slice #3: `render::render_utils` gains the tree-prefix helpers
+  (`build_tree_prefix`, `get_tree_branch`, `get_tree_continue_prefix`), a
+  dependency-free incremental `Hasher`, a bounded `RenderCache`, and a
+  background-aware `pad_to_width`.
+- Engine slice #4: `chrome::{live_board,dynamic_border,visual_truncate}` — the
+  in-place live repaint board (timer left to the caller), the dynamic border
+  component, and tail-windowed visual truncation.
+- Engine slice #5: `render::width_aware_text` adds `wrap_tree_line` /
+  `wrap_guided_line`, completing `l/src/render/hanging-wrap.ts`.
+- `team.memory/port-coverage.md` and `team.memory/port-test-coverage.md` —
+  exhaustive MISSING/PARTIAL coverage maps for `l/src` (457 files) and
+  `l/test` (354 files).
 
 ### Changed
 
