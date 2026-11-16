@@ -1,4 +1,5 @@
 //! Single-line text input with horizontal scrolling.
+//! Reference: `l/src/components/input.ts`.
 
 use crate::component::Component;
 use crate::keys::Key;

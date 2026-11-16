@@ -1,4 +1,5 @@
 //! OSC 8 terminal hyperlinks for paths and URLs.
+//! Reference: `l/src/render/hyperlink.ts`.
 //!
 //! [`hyperlink`] wraps display text in `ESC ] 8 ; id=HASH ; URI ESC \ TEXT
 //! ESC ] 8 ; ; ESC \`. Emission is gated by the `tui.hyperlinks` policy

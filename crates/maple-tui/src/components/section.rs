@@ -1,4 +1,5 @@
 //! Collapsible titled section with a rule and child components.
+//! Reference: `l/src/components/section.ts`.
 
 use crate::component::Component;
 use crate::keys::{is_enter, Key};

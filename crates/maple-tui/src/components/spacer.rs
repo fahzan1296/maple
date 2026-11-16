@@ -1,4 +1,5 @@
 //! Vertical whitespace.
+//! Reference: `l/src/components/spacer.ts`.
 
 use crate::component::Component;
 

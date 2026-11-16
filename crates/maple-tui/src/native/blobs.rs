@@ -1,4 +1,5 @@
 //! Content-addressed binary blobs (images) for `image` nodes.
+//! Reference: `l/src/native/blobs.ts`.
 //!
 //! `describe` registers the bytes and puts the returned id in `image.p.blob`;
 //! the native backend delivers each referenced blob once per terminal

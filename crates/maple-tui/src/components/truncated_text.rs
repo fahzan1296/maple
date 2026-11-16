@@ -1,4 +1,5 @@
 //! Single-line text clipped to the viewport.
+//! Reference: `l/src/components/truncated-text.ts`.
 
 use crate::component::Component;
 use crate::text_shape::{pad_to_width, truncate_to_width, Ellipsis};

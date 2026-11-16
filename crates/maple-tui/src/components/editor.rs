@@ -1,4 +1,5 @@
 //! Multi-line text editor with wrapping, scrolling, and autocomplete.
+//! Reference: `l/src/components/editor.ts`.
 //!
 //! Bounded clean-room port of the upstream `Editor`: plain buffer editing,
 //! word motion matching [`crate::components::input`], single-level undo, and a

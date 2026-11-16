@@ -1,5 +1,6 @@
 //! Bounded data table with a header row, selection highlight, and keyboard
 //! navigation.
+//! Reference: `l/src/components/table.ts`.
 
 use crate::component::Component;
 use crate::keys::{is_arrow_down, is_arrow_up, is_end, is_home, is_page_down, is_page_up, Key};

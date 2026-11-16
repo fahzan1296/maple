@@ -1,5 +1,6 @@
 //! Markdown renderer: headings, lists, tables, code fences, quotes, rules, and
 //! inline styles, wrapped to the viewport width.
+//! Reference: `l/src/components/markdown.ts`.
 //!
 //! Bounded clean-room port of the upstream `Markdown` component: no streaming
 //! cache, no syntax highlighter, no HTML block layout. Rendered rows preserve

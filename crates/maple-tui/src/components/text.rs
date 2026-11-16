@@ -1,4 +1,5 @@
 //! Multi-line padded text.
+//! Reference: `l/src/components/text.ts`.
 
 use crate::component::Component;
 use crate::style::Style;

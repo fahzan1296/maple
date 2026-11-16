@@ -1,4 +1,5 @@
 //! Native rendering state, settling, memoization and the bounded reconciler.
+//! Reference: `l/src/native/state.ts`, `l/src/native/reconcile.ts`, `l/src/native/settle.ts`, `l/src/native/memo.ts`, `l/src/native/apply.ts`.
 //!
 //! The TypeScript original threads a process-global state object, a settle
 //! flag per component, a per-describe memo, and a reconciler that diffs

@@ -1,4 +1,5 @@
 //! Collapsible title/body section with a caret and toggle callbacks.
+//! Reference: `l/src/components/disclosure.ts`.
 
 use crate::component::Component;
 use crate::keys::{is_enter, Key};

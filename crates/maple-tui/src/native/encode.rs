@@ -1,4 +1,5 @@
 //! Tern Surface Protocol framing: `ESC _ tsp ; <verb> [;k=v]* ; <body> ESC \`.
+//! Reference: `l/src/native/encode.ts`.
 //!
 //! Bodies are UTF-8 JSON (base64 for blobs). A body larger than the APC limit
 //! is chunked: the first chunk carries the parameters, every chunk carries

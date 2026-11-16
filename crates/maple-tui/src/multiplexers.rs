@@ -1,5 +1,7 @@
 //! Terminal multiplexer/host detection (port of the multiplexer modules and
 //! `terminal-capabilities` environment probing).
+//! Reference: `l/src/multiplexers/{zellij,screen,tmux,types,cmux,notify}.ts` and
+//! `l/src/terminal-capabilities.ts`.
 
 use std::env;
 

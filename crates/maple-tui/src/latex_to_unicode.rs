@@ -1,4 +1,5 @@
 //! LaTeX math → Unicode/ANSI conversion.
+//! Reference: `l/src/latex-to-unicode.ts`.
 //!
 //! Terminals cannot lay out real math, but a surprising amount of LaTeX maps
 //! cleanly onto Unicode: superscripts/subscripts (`x² xᵢ`), Greek (`α β`), big

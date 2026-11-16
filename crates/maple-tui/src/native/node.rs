@@ -1,4 +1,5 @@
 //! The describe contract: the [`NativeNode`] model, the TSP kind vocabulary,
+//! Reference: `l/src/native/node.ts`.
 //! and the context components consult while describing themselves.
 //!
 //! A node is the wire node minus its id: the reconciler derives ids from the
