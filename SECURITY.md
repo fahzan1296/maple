@@ -12,12 +12,30 @@
   Reservations are enforced by a hook, not by convention.
 - **Model boundary** — provider traffic leaves the host; secrets never leave
   (see below).
+This policy covers the Rust crates in `crates/` and `src/`. The TypeScript
+reference runtime in `l/` and third-party runtimes/services are out of scope.
 
 ## Reporting
 
 Report vulnerabilities privately to the maintainers before any public
-disclosure. Do not open a public issue for an unfixed defect. Include:
-reproduction, affected version/commit, impact, and a proposed mitigation.
+disclosure. Use a private vulnerability report:
+https://github.com/fahzan1296/maple/security/advisories/new
+Do not open a public issue for an unfixed defect. Include: reproduction,
+affected version/commit, impact, and a proposed mitigation.
+
+## Supported versions
+
+- `v0.1.x` (current `0.1.0`) — security fixes only; pre-release.
+- `master` — latest development.
+- Older releases are unsupported.
+
+## Response SLA
+
+| severity | acknowledge | triage | fix / mitigation |
+| --- | --- | --- | --- |
+| critical / high | 7 days | 14 days | 90 days |
+| medium | 14 days | 30 days | best effort |
+| low | 30 days | best effort | best effort |
 
 ## Rules enforced
 
