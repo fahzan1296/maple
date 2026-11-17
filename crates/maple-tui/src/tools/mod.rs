@@ -81,8 +81,8 @@ pub use bash_execution::{
 pub use eval_execution::{format_eval_code_for_display, EvalExecution, EvalLanguage};
 pub use shell_viz::{
     decode_shell_presentation, default_shell_viz_preferences, is_shell_viz_node, render_shell_visualization,
-    sanitize_text, shell_viz_text, ShellVizEffect, ShellVizEffectKind, ShellVizLayers, ShellVizNode,
-    ShellVizPresentation, ShellVizPreferences, ShellVizRange, ShellVizRole, ShellVizRow, ShellVizSegment,
-    ShellVizState, ShellVizTimeline, ShellVizView, ShellVizWatch,
+    sanitize_text, shell_viz_text, ShellTrace, ShellTraceEvent, ShellVizEffect, ShellVizEffectKind,
+    ShellVizLayers, ShellVizNode, ShellVizPlayback, ShellVizPresentation, ShellVizPreferences, ShellVizRange,
+    ShellVizRole, ShellVizRow, ShellVizSegment, ShellVizState, ShellVizTimeline, ShellVizView, ShellVizWatch,
 };
 pub use tool_execution::{ToolExecution, ToolExecutionState};

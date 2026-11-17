@@ -26,6 +26,7 @@ pub mod keys;
 pub mod loop_watchdog;
 pub mod mouse;
 pub mod mouse_sgr;
+pub mod mouse_tracking;
 pub mod multiplexers;
 pub mod screen;
 pub mod style;
@@ -38,6 +39,7 @@ pub mod windows_altgr;
 
 pub mod trigger;
 pub mod tui;
+pub mod start_listener;
 pub mod windows_input;
 pub mod fuzzy;
 pub mod autocomplete;

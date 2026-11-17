@@ -14,8 +14,8 @@
 //!   → [`crate::render::render_utils`] (`replace_tabs`, `padding`,
 //!   `slice_by_column`, `extract_segments`, `set_tight_layout`,
 //!   `is_tight_layout`, `get_padding_x`).
-//! - `stripTerminalSequences` is subsumed by [`crate::ansi_scan::strip_ansi`],
-//!   which also drops the CSI forms the reference parser leaves alone.
+//! - `stripTerminalSequences` is subsumed by [`crate::strip_ansi`], which also
+//!   drops the CSI forms the reference parser leaves alone.
 //! - Word navigation (`getWordNavKind`, `moveWordLeft`, `moveWordRight`,
 //!   `isWordNavJoiner`) is reimplemented in [`crate::vim`], its only consumer.
 //! - The width-config sidecar (`publishLineWidths`,
@@ -32,9 +32,100 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use crate::render::render_utils::{padding, replace_tabs, slice_by_column};
-use crate::terminal_capabilities::HangulCompatibilityJamoWidth;
-use crate::text_shape::{truncate_to_width, visible_width, Ellipsis};
+pub use crate::render::render_utils::{
+	get_padding_x, is_tight_layout, padding, replace_tabs, set_tight_layout,
+	slice_by_column as slice_with_width,
+};
+pub use crate::terminal_capabilities::HangulCompatibilityJamoWidth;
+pub use crate::text_shape::{truncate_to_width, visible_width, wrap_text_with_ansi, Ellipsis};
+pub use crate::vim::{
+	is_word_nav_joiner, move_word_left, move_word_right, word_nav_kind, WordNavKind,
+};
+
+/// Extract a range of visible columns from a line, ANSI-aware.
+pub fn slice_by_column(line: &str, start_col: usize, length: usize, strict: bool) -> String {
+	crate::render::render_utils::slice_by_column(line, start_col, length, strict).text
+}
+
+/// Head and tail of a line around a skipped column window.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExtractSegmentsResult {
+	pub before: String,
+	pub before_width: usize,
+	pub after: String,
+	pub after_width: usize,
+}
+
+/// Split `line` into the text before `before_end` and the text starting at
+/// `after_start` for `after_len` columns.
+pub fn extract_segments(
+	line: &str,
+	before_end: usize,
+	after_start: usize,
+	after_len: usize,
+	strict_after: bool,
+) -> ExtractSegmentsResult {
+	let before = crate::render::render_utils::slice_by_column(line, 0, before_end, true);
+	let after = crate::render::render_utils::slice_by_column(line, after_start, after_len, strict_after);
+	ExtractSegmentsResult {
+		before: before.text,
+		before_width: before.width,
+		after: after.text,
+		after_width: after.width,
+	}
+}
+
+/// Shared grapheme segmenter, mirroring the reference `Intl.Segmenter`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GraphemeSegmenter;
+
+impl GraphemeSegmenter {
+	pub fn segment<'a>(&self, text: &'a str) -> Vec<&'a str> {
+		use unicode_segmentation::UnicodeSegmentation;
+		text.graphemes(true).collect()
+	}
+}
+
+/// Get the shared grapheme segmenter instance.
+pub fn get_segmenter() -> GraphemeSegmenter {
+	GraphemeSegmenter
+}
+
+const LINE_WIDTH_SIDECAR_MAX: usize = 1024;
+static LINE_WIDTH_SIDECAR: Mutex<Vec<(Vec<String>, usize, Vec<usize>)>> = Mutex::new(Vec::new());
+
+/// Publish exact per-line visible widths for a rendered lines array.
+pub fn publish_line_widths(lines: &[String], widths: &[usize]) -> Result<(), String> {
+	if lines.len() != widths.len() {
+		return Err(format!(
+			"Cannot publish {} widths for {} lines",
+			widths.len(),
+			lines.len()
+		));
+	}
+	let epoch = WIDTH_CONFIG_EPOCH.load(Ordering::Relaxed);
+	let mut sidecar = LINE_WIDTH_SIDECAR.lock().unwrap();
+	sidecar.retain(|(published, _, _)| published != lines);
+	sidecar.push((lines.to_vec(), epoch, widths.to_vec()));
+	if sidecar.len() > LINE_WIDTH_SIDECAR_MAX {
+		sidecar.remove(0);
+	}
+	Ok(())
+}
+
+/// Exact per-line visible widths for an unchanged `lines` array under the
+/// current width config.
+pub fn get_published_line_widths(lines: &[String]) -> Option<Vec<usize>> {
+	let epoch = WIDTH_CONFIG_EPOCH.load(Ordering::Relaxed);
+	let sidecar = LINE_WIDTH_SIDECAR.lock().unwrap();
+	sidecar.iter().rev().find_map(|(published, published_epoch, widths)| {
+		if *published_epoch == epoch && published.len() == lines.len() && published == lines {
+			Some(widths.clone())
+		} else {
+			None
+		}
+	})
+}
 
 /// Display columns one tab expands to. Mirrors `DEFAULT_TAB_WIDTH` from
 /// `@oh-my-pi/pi-utils` (3).
@@ -245,7 +336,7 @@ fn ansi_code_len(input: &str, pos: usize) -> Option<usize> {
 		b'[' => {
 			let mut index = pos + 2;
 			while let Some(byte) = bytes.get(index) {
-				if matches!(byte, b'm' | b'G' | b'K' | b'H' | b'J') {
+				if matches!(*byte, b'm' | b'G' | b'K' | b'H' | b'J') {
 					return Some(index + 1 - pos);
 				}
 				index += 1;
@@ -300,9 +391,9 @@ pub fn wrap_literal_line(line: &str, width: usize) -> Vec<String> {
 	let mut rows = Vec::new();
 	let mut column = 0usize;
 	while column < line_width {
-		let mut slice = slice_by_column(line, column, columns, true);
+		let mut slice = crate::render::render_utils::slice_by_column(line, column, columns, true);
 		if slice.width == 0 {
-			slice = slice_by_column(line, column, columns, false);
+			slice = crate::render::render_utils::slice_by_column(line, column, columns, false);
 		}
 		rows.push(slice.text);
 		column += slice.width.max(1);
@@ -354,9 +445,8 @@ pub fn apply_background_to_line(line: &str, width: usize, bg_fn: &dyn Fn(&str) -
 		if let Some(probe_index) = probe.find('\x01') {
 			if probe_index > 0 {
 				let open = &probe[..probe_index];
-				if !open.is_empty() {
-					with_padding = with_padding.replace("\x1b[49m", &format!("\x1b[49m{open}"));
-				}
+				let repetition = format!("\x1b[49m{open}");
+				with_padding = with_padding.replace("\x1b[49m", repetition.as_str());
 			}
 		}
 	}
@@ -469,7 +559,7 @@ mod tests {
 	#[test]
 	fn centering_and_single_lining_match_the_reference() {
 		assert_eq!(center_line("ab", 6), "  ab  ");
-		assert_eq!(center_line("abcdef", 3), "abc");
+		assert_eq!(center_line("abcdef", 3), "ab…");
 		assert_eq!(single_line("a\tb\r\nc"), "a   b c");
 	}
 
@@ -481,5 +571,42 @@ mod tests {
 			apply_background_to_line("a\x1b[49mb", 4, &bg),
 			"\x1b[44ma\x1b[49m\x1b[44mb  \x1b[0m"
 		);
+	}
+
+	#[test]
+	fn slice_by_column_and_extract_segments_are_ansi_aware() {
+		assert_eq!(slice_by_column("\x1b[31mabcdef\x1b[0m", 0, 2, true), "\x1b[31mab");
+		assert_eq!(slice_by_column("abcdef", 1, 2, false), "bc");
+		let segments = extract_segments("\x1b[31mabcdef\x1b[0m", 2, 4, 2, true);
+		assert_eq!(segments.before, "\x1b[31mab");
+		assert_eq!(segments.before_width, 2);
+		assert_eq!(segments.after_width, 2);
+	}
+
+	#[test]
+	fn published_line_widths_require_matching_lines_and_epoch() {
+		let lines = vec!["ab".to_string(), "c".to_string()];
+		assert!(publish_line_widths(&lines, &[2, 1]).is_ok());
+		assert_eq!(get_published_line_widths(&lines), Some(vec![2, 1]));
+		assert!(publish_line_widths(&lines, &[2]).is_err());
+		assert_eq!(get_published_line_widths(&["ab".to_string()]), None);
+	}
+
+	#[test]
+	fn word_navigation_uses_unicode_classes_and_joiners() {
+		assert_eq!(word_nav_kind(" "), WordNavKind::Whitespace);
+		assert_eq!(word_nav_kind("_"), WordNavKind::Word);
+		assert_eq!(word_nav_kind("!"), WordNavKind::Delimiter);
+		assert_eq!(word_nav_kind("한"), WordNavKind::Cjk);
+		assert_eq!(word_nav_kind("a"), WordNavKind::Word);
+		assert!(is_word_nav_joiner("-"));
+		assert!(!is_word_nav_joiner("/"));
+		assert_eq!(move_word_left("foo-bar  ", 9), 0);
+		assert_eq!(move_word_right("  foo-bar", 0), 9);
+	}
+
+	#[test]
+	fn grapheme_segmenter_splits_by_grapheme() {
+		assert_eq!(get_segmenter().segment("a\u{301}b"), vec!["a\u{301}", "b"]);
 	}
 }

@@ -121,6 +121,11 @@ All notable changes to this project are documented here. The format follows
 - `team.memory/port-coverage.md` and `team.memory/port-test-coverage.md` —
   exhaustive MISSING/PARTIAL coverage maps for `l/src` (457 files) and
   `l/test` (354 files).
+- `THIRD-PARTY-NOTICES` runtime-dependency table: all 121 crates resolved in
+  `Cargo.lock` with version, license, and upstream URL (14 not yet vendored are
+  marked `verify on first build`); clean-room wording in `README.md`,
+  `PRD.md`, and `CONTRIBUTING.md` now distinguishes the reference source from
+  linked third-party crates.
 
 ### Changed
 
@@ -139,6 +144,12 @@ All notable changes to this project are documented here. The format follows
   2026-11-15).
 - Stack decision: pure Rust (ADR-0003) — one binary, no Bun/Node; TUI on
   `ratatui` + `crossterm`.
+- Correction: `ratatui` is not a dependency of maple (absent from `Cargo.toml`
+  and `Cargo.lock`); the TUI is built directly on `crossterm`. See
+  `docs/adr/0003-pure-rust.md` Amendment 2026-11-17.
+- `docs/adr/0001-clean-room.md` and `docs/adr/0003-pure-rust.md` amended
+  (2026-11-17): the "no third-party copyright lines" consequence is scoped to
+  the reference source, and the TUI stack is corrected to `crossterm`.
 - Total rebrand to maple: inherited `pi`/`omp`/`oh-my-pi` names removed from
   code and docs. Environment variables are now `MAPLE_*` and still honour the
   legacy `PI_*` name as a fallback (`maple_tui::env_lookup`); the custom-theme

@@ -31,6 +31,7 @@ pub struct ProcessTerminal {
     program_status: ProgramStatusProbe,
     stdin_buffer: StdinBuffer,
     stop: Arc<AtomicBool>,
+    worker: Option<JoinHandle<()>>,
     cursor_tracker: CursorVisibilityTracker,
 }
 

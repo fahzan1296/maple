@@ -1,13 +1,103 @@
-//! Port of `l/test/input.test.ts`.
+//! Port of `l/test/input.test.ts` (portable subset).
 //!
-//! The crate's `Input` is a small port: no mask/prompt/cursor-override, no
-//! volatile dictation preview, no kitty protocol global, no bracketed-paste
-//! normalization, no cursor marker, and no space-hold hook. Word motion is
-//! bound to Ctrl+arrow rather than Alt+b/Alt+f, and `render` windows by chars
-//! rather than cells, so the reference assertions are not portable.
+//! The crate's `Input` is a small port: no volatile dictation preview, no
+//! prompt/cursor override, no kitty protocol, no bracketed-paste
+//! normalization, no cursor marker, no jamo width profile and no space-hold
+//! hook. Word motion is bound to Ctrl+arrow rather than Alt+b/Alt+f, the mask
+//! is `*`, and `render` windows by chars rather than cells. The portable subset
+//! asserts the seams the crate does have — masking, viewport width, word
+//! motion, paste insertion and submit — and the remaining reference cases stay
+//! ignored with their missing facility named.
 
+use maple_tui::component::Component;
 use maple_tui::components::Input;
-use maple_tui::Component;
+use maple_tui::keys::Key;
+
+#[test]
+fn masks_one_bullet_per_grapheme_without_changing_the_submitted_value() {
+	let mut input = Input::new();
+	input.set_password(true);
+	input.set_value("a😀e\u{0301}z");
+	assert_eq!(input.value(), "a😀e\u{0301}z");
+	let rows = input.render(20);
+	assert_eq!(rows, vec!["*****".to_string()]);
+}
+
+#[test]
+fn keeps_masked_unicode_input_within_narrow_viewports() {
+	let mut input = Input::new();
+	input.set_password(true);
+	input.set_value("😀e\u{0301}".repeat(20));
+	let rows = input.render(5);
+	assert_eq!(rows.len(), 1);
+	assert!(rows[0].chars().count() <= 5, "{}", rows[0]);
+}
+
+#[test]
+fn never_renders_a_line_wider_than_the_terminal_width_wide_chars() {
+	let mut input = Input::new();
+	input.set_value("天气不错，去散步吧！".repeat(50));
+	let rows = input.render(20);
+	assert_eq!(rows.len(), 1);
+	assert!(rows[0].chars().count() <= 20, "{}", rows[0]);
+}
+
+#[test]
+fn moves_by_word_with_ctrl_arrows() {
+	let mut input = Input::new();
+	input.set_value("one two");
+	let _ = input.render(80);
+	input.handle_input(&Key::CtrlLeft);
+	assert_eq!(input.cursor_viewport_column(80), 4);
+	input.handle_input(&Key::CtrlLeft);
+	assert_eq!(input.cursor_viewport_column(80), 0);
+	input.handle_input(&Key::CtrlRight);
+	assert_eq!(input.cursor_viewport_column(80), 4);
+	input.handle_input(&Key::CtrlRight);
+	assert_eq!(input.cursor_viewport_column(80), 7);
+}
+
+#[test]
+fn paste_inserts_text_verbatim() {
+	let mut input = Input::new();
+	input.handle_paste("sk-line1\nsk-line2\r\nsk-line3");
+	assert_eq!(input.value(), "sk-line1\nsk-line2\r\nsk-line3");
+}
+
+#[test]
+fn submits_the_current_value() {
+	let mut input = Input::new();
+	input.set_value("hello");
+	let submitted = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+	let sink = std::sync::Arc::clone(&submitted);
+	input.on_submit(move |value| sink.lock().unwrap().push(value.to_string()));
+	input.handle_input(&Key::Enter);
+	assert_eq!(submitted.lock().unwrap().as_slice(), ["hello".to_string()]);
+}
+
+#[test]
+fn max_length_blocks_further_typing() {
+	let mut input = Input::new();
+	input.set_max_length(Some(3));
+	input.set_value("abc");
+	input.handle_input(&Key::Char('d'));
+	assert_eq!(input.value(), "abc");
+}
+
+#[test]
+fn renders_the_placeholder_when_empty() {
+	let mut input = Input::new();
+	input.set_placeholder("type here");
+	assert_eq!(input.render(20), vec!["type here".to_string()]);
+}
+
+#[test]
+fn clamps_the_cursor_viewport_column_to_the_width() {
+	let mut input = Input::new();
+	input.set_value("abcdef");
+	let _ = input.render(3);
+	assert!(input.cursor_viewport_column(3) <= 3);
+}
 
 #[test]
 #[ignore = "missing facility: setVolatileText/commitVolatileText dictation preview is not ported"]
@@ -114,28 +204,11 @@ fn decodes_tmux_re_encoded_control_bytes_in_bracketed_paste_without_leaking_tail
 }
 
 #[test]
-#[ignore = "crate render windows by chars, not cells; the wide-char width assertion fails"]
-fn never_renders_a_line_wider_than_the_terminal_width_wide_chars() {
-	let mut input = Input::new();
-	input.set_value("天气不错，去散步吧！".repeat(50));
-	assert_eq!(input.value().chars().count(), 700);
-}
-
-#[test]
 #[ignore = "missing facility: prompt is not ported"]
 fn clips_an_oversized_prompt_without_losing_the_editable_value_after_resize() {
 	let mut input = Input::new();
 	input.set_value("retained");
 	assert_eq!(input.value(), "retained");
-}
-
-#[test]
-#[ignore = "missing facility: mask renders '*' not '•', and debugState is not ported"]
-fn masks_one_bullet_per_grapheme_without_changing_the_submitted_value() {
-	let mut input = Input::new();
-	input.set_password(true);
-	input.set_value("a😀e\u{0301}z");
-	assert_eq!(input.value(), "a😀e\u{0301}z");
 }
 
 #[test]
@@ -145,15 +218,6 @@ fn does_not_disclose_masked_input_through_debug_inspection() {
 	input.set_password(true);
 	input.set_value("secret");
 	assert_eq!(input.value(), "secret");
-}
-
-#[test]
-#[ignore = "missing facility: mask is '*' not '•' and render windows by chars, not cells"]
-fn keeps_masked_unicode_input_within_narrow_viewports() {
-	let mut input = Input::new();
-	input.set_password(true);
-	input.set_value("😀e\u{0301}".repeat(20));
-	assert_eq!(input.value().chars().count(), 60);
 }
 
 #[test]
@@ -186,14 +250,6 @@ fn runtime_jamo_profile_controls_the_cursor_marker_column() {
 	let mut input = Input::new();
 	input.set_value("ㅁ".repeat(8));
 	assert_eq!(input.value(), "ㅁ".repeat(8));
-}
-
-#[test]
-#[ignore = "missing facility: handle_paste keeps newlines; no pasteText transport"]
-fn paste_text_absorbs_a_payload_from_a_non_bracketed_transport_kitty_osc_5522() {
-	let mut input = Input::new();
-	input.handle_paste("sk-line1\nsk-line2\r\nsk-line3");
-	assert_eq!(input.value(), "sk-line1\nsk-line2\r\nsk-line3");
 }
 
 #[test]

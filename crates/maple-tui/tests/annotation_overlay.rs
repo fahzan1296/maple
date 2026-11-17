@@ -15,7 +15,8 @@ use maple_tui::overlays::annotation_overlay::{
 	TextReviewOverlayResult,
 };
 use maple_tui::overlays::annotation_types::{
-	ReviewDiffFile, ReviewSourceRow, ReviewSourceRowKind, TextReviewSource, TextReviewSourceProvenance,
+	ReviewDiffFile, ReviewDiffRow, ReviewSourceRow, ReviewSourceRowKind, TextReviewSource,
+	TextReviewSourceProvenance,
 };
 use maple_tui::strip_ansi;
 
@@ -36,14 +37,14 @@ impl AnnotationOverlayCallbacks for Cb {
 fn file(path: &str) -> ReviewDiffFile {
 	ReviewDiffFile {
 		path: path.to_string(),
-		rows: vec![ReviewSourceRow {
+		rows: vec![ReviewDiffRow::Source(ReviewSourceRow {
 			kind: ReviewSourceRowKind::Context,
 			raw: " context".to_string(),
 			content: "context".to_string(),
 			old_line: Some(1),
 			new_line: Some(1),
 			hunk_header: "@@ -1 +1 @@".to_string(),
-		}],
+		})],
 		..ReviewDiffFile::default()
 	}
 }
@@ -76,8 +77,9 @@ fn floats_selected_filepath_while_file_focus_is_active() {
 #[test]
 fn note_editor_wraps_at_input_capacity_with_software_cursor() {
 	let source = TextReviewSource {
-		provenance: TextReviewSourceProvenance::Custom,
+		provenance: TextReviewSourceProvenance::Prompt,
 		text: "source text".to_string(),
+		..TextReviewSource::default()
 	};
 	let mut overlay = maple_tui::overlays::annotation_overlay::AnnotationOverlayComponent::new_text_review(
 		source,
@@ -99,8 +101,9 @@ fn note_editor_wraps_at_input_capacity_with_software_cursor() {
 #[test]
 fn text_mode_navigates_and_confirms_discard_only_twice() {
 	let source = TextReviewSource {
-		provenance: TextReviewSourceProvenance::Custom,
+		provenance: TextReviewSourceProvenance::Prompt,
 		text: "a\nb\nc".to_string(),
+		..TextReviewSource::default()
 	};
 	let mut overlay = maple_tui::overlays::annotation_overlay::AnnotationOverlayComponent::new_text_review(
 		source,
@@ -119,7 +122,7 @@ fn text_mode_navigates_and_confirms_discard_only_twice() {
 
 #[test]
 fn describes_rows_for_native() {
-	let overlay = AnnotationOverlayComponent::new_code_review(files, "Reviewing changes", Cb::default());
+	let overlay = AnnotationOverlayComponent::new_code_review(vec![file("src/a.ts")], "Reviewing changes", Cb::default());
 	let node = overlay.describe_native(&DescribeContext { cols: 50, ..Default::default() });
 	assert!(matches!(node.kind, NodeKind::Rows));
 }

@@ -56,3 +56,11 @@ deployment (one binary).
   membuat berbasis multi session sih biar hemat ram."
 - Host: `rustc 1.99.1`; the cargo registry cache already contains
   serde/serde_json, crossterm, ratatui, uuid, sha2, clap (offline build).
+
+## Amendment 2026-11-17
+
+The Decision text above lists `ratatui` as the TUI layer, and the Evidence
+line records it as cached. That is historical: `ratatui` is not a dependency
+in `Cargo.toml` or `Cargo.lock`. The TUI is built directly on `crossterm`
+(the `maple-tui` dependency), with maple's own differential renderer and
+component system. `crossterm` is attributed in `THIRD-PARTY-NOTICES`.

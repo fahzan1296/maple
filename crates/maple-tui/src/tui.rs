@@ -12,6 +12,7 @@
 
 use crate::component::Component;
 use crate::keys::Key;
+use crate::mouse_tracking::{MouseTracking, MouseTrackingState};
 use crate::screen::Screen;
 use crate::terminal::{Terminal, TtyEvent};
 use crate::text_shape::{truncate_to_width, Ellipsis};
@@ -63,10 +64,12 @@ impl OverlayMargin {
 }
 
 /// Options for [`Tui::show_overlay`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OverlayOptions {
     /// Paint only this overlay, as a modal frame, for its lifetime.
     pub fullscreen: bool,
+    /// Keep mouse reporting active while this fullscreen overlay is up.
+    pub mouse_tracking: bool,
     /// Placement of the floating overlay.
     pub anchor: OverlayAnchor,
     /// Reserved rows/columns the overlay must not paint into.
@@ -79,6 +82,30 @@ pub struct OverlayOptions {
     pub row: Option<u16>,
     /// Fixed column, overriding the horizontal anchor.
     pub col: Option<u16>,
+}
+
+impl Default for OverlayOptions {
+    fn default() -> Self {
+        Self {
+            fullscreen: false,
+            mouse_tracking: true,
+            anchor: OverlayAnchor::default(),
+            margin: OverlayMargin::default(),
+            max_height: None,
+            width: None,
+            row: None,
+            col: None,
+        }
+    }
+}
+
+/// Painted inline window observed by [`Tui::get_mutable_viewport`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MutableViewport {
+    /// First painted row; always 0 in this crate.
+    pub top: u16,
+    /// Painted rows; 0 while a fullscreen overlay covers the window.
+    pub length: usize,
 }
 
 /// Handle controlling one overlay.
@@ -257,6 +284,8 @@ pub struct Tui {
     on_paint: Option<Box<dyn FnMut(&TuiPaint)>>,
     last_paint: Option<TuiPaint>,
     frame_provider: Option<Box<dyn TerminalFrameProvider>>,
+    inline_mouse_provider: Option<Box<dyn Fn() -> bool>>,
+    mouse_tracking: MouseTracking,
     modal_active: bool,
     last_overflow: Vec<String>,
 }
@@ -281,6 +310,8 @@ impl Tui {
             on_paint: None,
             last_paint: None,
             frame_provider: None,
+            inline_mouse_provider: None,
+            mouse_tracking: MouseTracking::new(),
             modal_active: false,
             last_overflow: Vec::new(),
         }
@@ -437,6 +468,31 @@ impl Tui {
         self.request_render();
     }
 
+    /// Install the inline mouse-reporting provider; `None` disables it.
+    ///
+    /// Reporting is on only while the provider returns true and no overlay
+    /// covers the window. Fullscreen overlays keep reporting when
+    /// [`OverlayOptions::mouse_tracking`] is true.
+    pub fn set_inline_mouse_tracking_provider(
+        &mut self,
+        provider: Option<Box<dyn Fn() -> bool>>,
+    ) {
+        self.inline_mouse_provider = provider;
+        self.request_render();
+    }
+
+    /// The inline painted window: `top` is always 0 and `length` is the last
+    /// paint's row count, or 0 while a fullscreen overlay is active.
+    pub fn get_mutable_viewport(&self) -> MutableViewport {
+        match &self.last_paint {
+            Some(paint) if !paint.alt => MutableViewport {
+                top: 0,
+                length: paint.viewport.len(),
+            },
+            _ => MutableViewport::default(),
+        }
+    }
+
     /// Mark the engine dirty; the next render diffs against the live screen.
     pub fn request_render(&mut self) {
         self.dirty = true;
@@ -477,6 +533,10 @@ impl Tui {
     pub fn stop(&mut self) -> io::Result<()> {
         self.stopped = true;
         self.trigger.request();
+        let mouse_bytes = self.mouse_tracking.shutdown();
+        if !mouse_bytes.is_empty() {
+            self.terminal.write(mouse_bytes);
+        }
         self.terminal.stop()
     }
 
@@ -511,6 +571,23 @@ impl Tui {
             self.screen = Screen::new();
             self.modal_active = fullscreen;
             reset = true;
+        }
+        let want_mouse = match self.topmost_visible_overlay_options() {
+            None => {
+                if self.inline_mouse_provider.as_ref().is_some_and(|provider| provider()) {
+                    MouseTrackingState::Inline
+                } else {
+                    MouseTrackingState::Off
+                }
+            }
+            Some(options) if options.fullscreen && options.mouse_tracking => {
+                MouseTrackingState::Full
+            }
+            Some(_) => MouseTrackingState::Off,
+        };
+        let mouse_bytes = self.mouse_tracking.reconcile(want_mouse);
+        if !mouse_bytes.is_empty() {
+            self.terminal.write(mouse_bytes);
         }
         if self.clear_scrollback {
             self.terminal.write(ERASE_SAVED_LINES);
@@ -680,6 +757,14 @@ impl Tui {
             .rev()
             .find(|entry| !entry.closed.get() && !entry.hidden.get())
             .map(|entry| entry.id)
+    }
+
+    fn topmost_visible_overlay_options(&self) -> Option<OverlayOptions> {
+        self.overlays
+            .iter()
+            .rev()
+            .find(|entry| !entry.closed.get() && !entry.hidden.get())
+            .map(|entry| entry.options)
     }
 
     fn valid_focus(&self, target: Option<FocusTarget>) -> Option<FocusTarget> {

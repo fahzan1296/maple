@@ -268,7 +268,7 @@ pub fn classify_grouped_lines_with_scope<S: AsRef<str>>(
 		let target_end = suffix.map(|matched| matched.start()).unwrap_or(rest.len());
 		let target = &rest[..target_end];
 		let note = suffix.map(|matched| matched.as_str().trim().to_string());
-		let name = HASHLINE_TAG_SUFFIX_RE.replacen(target, "", 1).into_owned();
+		let name = HASHLINE_TAG_SUFFIX_RE.replacen(target, 1, "").into_owned();
 		if url {
 			current_url = Some(target.to_string());
 			result.push(GroupedLineContext {
@@ -293,6 +293,96 @@ pub fn classify_grouped_lines_with_scope<S: AsRef<str>>(
 		});
 	}
 	result
+}
+
+/// Link details a grouped-output tool records for hyperlinks: display base
+/// paths and resolved URL targets.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GroupedLinkDetails {
+	/// Session cwd the displayed (folded) paths are relative to.
+	pub cwd: Option<String>,
+	/// Directory the search was scoped to.
+	pub search_path: Option<String>,
+	/// Resolved filesystem target per displayed URL.
+	pub display_targets: Option<HashMap<String, String>>,
+}
+
+fn grouped_target_of(
+	context: &GroupedLineContext,
+	url_targets: Option<&HashMap<String, String>>,
+) -> Option<String> {
+	let direct = match context.kind {
+		Some(GroupedLineKind::File) => context.header_path.as_ref(),
+		_ => context.file_path.as_ref(),
+	};
+	direct.cloned().or_else(|| {
+		context
+			.url
+			.as_ref()
+			.and_then(|url| url_targets.and_then(|targets| targets.get(url).cloned()))
+	})
+}
+
+fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
+	value.get(key).and_then(serde_json::Value::as_str).map(str::to_string)
+}
+
+fn json_string_map_field(value: &serde_json::Value, key: &str) -> Option<HashMap<String, String>> {
+	let map = value.get(key)?.as_object()?;
+	let mut out = HashMap::with_capacity(map.len());
+	for (url, file) in map {
+		out.insert(url.clone(), file.as_str()?.to_string());
+	}
+	Some(out)
+}
+
+/// Link targets for the rows of sanitized grouped output: a file row's file, a
+/// body row's owning file, and for an internal URL the file `display_targets`
+/// resolves it to. Destinations keep the original path bytes: while the raw
+/// `display_content` still aligns line-for-line with the sanitized display
+/// text, a row takes its raw classification's target. Raw text never links a
+/// row the sanitized output leaves unlinked.
+///
+/// `raw_details` is the un-sanitized details record; pass `Some` only when it
+/// differs from `details`.
+#[must_use]
+pub fn grouped_link_targets<'a>(
+	contexts: &'a [GroupedLineContext],
+	display_text: &str,
+	details: Option<&GroupedLinkDetails>,
+	raw_details: Option<&serde_json::Value>,
+) -> impl Fn(usize) -> Option<String> + 'a {
+	let display_targets = details.and_then(|details| details.display_targets.as_ref()).map(|targets| {
+		targets
+			.iter()
+			.map(|(url, file)| (crate::tools::shell_viz::sanitize_text(url), file.clone()))
+			.collect::<HashMap<_, _>>()
+	});
+	let raw = raw_details.filter(|raw| raw.is_object());
+	let raw_contexts = raw.and_then(|raw| {
+		let content = json_string_field(raw, "displayContent")?;
+		let lines: Vec<&str> = content.split('\n').collect();
+		if lines.len() != contexts.len()
+			|| crate::tools::shell_viz::sanitize_text(&content) != display_text
+		{
+			return None;
+		}
+		let header_base = json_string_field(raw, "cwd").or_else(|| json_string_field(raw, "searchPath"));
+		let file_scope = json_string_field(raw, "searchPath");
+		Some(classify_grouped_lines_with_scope(&lines, header_base.as_deref(), file_scope.as_deref()))
+	});
+	let raw_targets = raw.and_then(|raw| json_string_map_field(raw, "displayTargets"));
+	move |index| {
+		let context = contexts.get(index)?;
+		let target = grouped_target_of(context, display_targets.as_ref());
+		let raw_context = raw_contexts.as_ref().and_then(|contexts| contexts.get(index));
+		if let Some(raw_context) = raw_context {
+			if raw_context.kind == context.kind && raw_context.depth == context.depth {
+				return grouped_target_of(raw_context, raw_targets.as_ref()).or(target);
+			}
+		}
+		target
+	}
 }
 
 /// Split line indices into blank-line-separated groups. When any blank line is
@@ -402,13 +492,14 @@ pub fn format_file_matches(
 			.iter()
 			.map(|file_path| {
 				let section = render(file_path);
+				let skip = section.model.is_empty();
 				(
 					file_path.clone(),
 					GroupedFileSection {
 						model_lines: section.model,
 						display_lines: Some(section.display),
 						header_suffix: section.tag.map(|tag| format!("#{tag}")),
-						skip: section.model.is_empty(),
+						skip,
 					},
 				)
 			})

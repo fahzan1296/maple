@@ -14,15 +14,20 @@
 //!   as plain inputs so the same heads can be described.
 //! - Table charts and SVG figure lifting are not wired here; text blocks draw
 //!   as plain Markdown (the crate's Markdown already renders charts).
-//! - Extension text renderers are stored but not invoked: `AssistantTextRenderer`
-//!   is a JS extension surface.
+//! - Extension text renderers are invoked per text block with a read-only
+//!   context; a panicking renderer falls back to its input. The native
+//!   describe md nodes use the same transform, but native action wiring
+//!   (copy/timeout) stays host-side.
 //! - The crate has no `retry_recovery.attempt` count in scope, so callers pass
 //!   `retry_attempt` where the reference reads it.
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::chat::cache_invalidation_marker::CacheInvalidation;
+use crate::chat::extension_types::{AssistantTextRenderContext, AssistantTextRenderer};
 use crate::chat::messages::{AssistantContent, AssistantMessage, ImageContent};
 use crate::chat::served_model_marker::ServedModelMismatch;
 use crate::chat::thinking_display::{
@@ -237,9 +242,12 @@ pub struct AssistantMessageComponent {
 	streaming_rate: f64,
 	stable_rows: Vec<String>,
 	stable_parts: Vec<StablePart>,
-	text_renderers: usize,
-	last_transient: bool,
+	text_renderers: Vec<AssistantTextRenderer>,
+	content_offset: usize,
+	renderer_cache: RefCell<HashMap<(i64, usize, String, bool), String>>,
+	renderer_failures: Cell<u64>,
 	persistence_key: Option<String>,
+	last_transient: bool,
 }
 
 impl AssistantMessageComponent {
@@ -275,9 +283,12 @@ impl AssistantMessageComponent {
 			streaming_rate: 0.0,
 			stable_rows: Vec::new(),
 			stable_parts: Vec::new(),
-			text_renderers: 0,
-			last_transient: false,
+			text_renderers: Vec::new(),
+			content_offset: 0,
+			renderer_cache: RefCell::new(HashMap::new()),
+			renderer_failures: Cell::new(0),
 			persistence_key: None,
+			last_transient: false,
 		}
 	}
 
@@ -453,14 +464,27 @@ impl AssistantMessageComponent {
 		self.block_version += 1;
 	}
 
-	/// Take the extension text renderers; they are counted, not invoked.
-	pub fn set_text_renderers(&mut self, count: usize) {
-		self.text_renderers = count;
+	/// Install the extension text renderers, applied in registration order.
+	/// Installing renderers drops cached block outputs so the next draw rewrites.
+	pub fn set_text_renderers(&mut self, renderers: Vec<AssistantTextRenderer>) {
+		self.text_renderers = renderers;
+		self.renderer_cache.borrow_mut().clear();
+		self.block_version += 1;
 	}
 
-	/// Note how many extension text renderers are installed.
+	/// Where this component's first content block sits in the full reply.
+	pub fn set_text_renderer_offset(&mut self, offset: usize) {
+		self.content_offset = offset;
+	}
+
+	/// How many extension text renderers are installed.
 	pub fn text_renderers(&self) -> usize {
-		self.text_renderers
+		self.text_renderers.len()
+	}
+
+	/// How many renderer invocations panicked and fell back to their input.
+	pub fn renderer_failure_count(&self) -> u64 {
+		self.renderer_failures.get()
 	}
 
 	/// Apply retry-recovery bookkeeping from a rebuilt message.
@@ -481,6 +505,7 @@ impl AssistantMessageComponent {
 			return false;
 		}
 		self.block_version += 1;
+		self.renderer_cache.borrow_mut().clear();
 		true
 	}
 
@@ -577,6 +602,11 @@ impl AssistantMessageComponent {
 
 	/// Publish the reply's prose as stable rows and return them.
 	pub fn publish_stable_rows(&mut self, width: u16) -> Vec<String> {
+		if !self.text_renderers.is_empty() {
+			// A renderer may still rewrite these rows; keep the reply live.
+			self.stable_rows.clear();
+			return Vec::new();
+		}
 		let rows = self.prose_rows(width, usize::MAX);
 		let parts = self.message.as_ref().map(|message| display_parts(message, self.prose_only_thinking)).unwrap_or_default();
 		if is_snapshot_extension(&self.stable_parts, &parts) {
@@ -625,19 +655,76 @@ impl AssistantMessageComponent {
 		}
 	}
 
+	/// Run the installed renderers over one block, falling back to the input
+	/// when a renderer panics. The stored message is only ever borrowed.
+	fn renderer_text(
+		&self,
+		message: &AssistantMessage,
+		content_index: usize,
+		input: &str,
+		streaming: bool,
+	) -> String {
+		if self.text_renderers.is_empty() {
+			return input.to_string();
+		}
+		let mut text = input.to_string();
+		for renderer in &self.text_renderers {
+			let context = AssistantTextRenderContext {
+				message,
+				content_index,
+				text: &text,
+				streaming,
+			};
+			match catch_unwind(AssertUnwindSafe(|| renderer(&context))) {
+				Ok(Some(output)) => text = output,
+				Ok(None) => {}
+				Err(_) => self.renderer_failures.set(self.renderer_failures.get() + 1),
+			}
+		}
+		text
+	}
+
+	/// Renderer output for a sealed block is reused across later updates until
+	/// a redraw (`rerender_message`) or a renderer swap asks for it again.
+	fn cached_renderer_text(
+		&self,
+		message: &AssistantMessage,
+		content_index: usize,
+		input: &str,
+		streaming: bool,
+	) -> String {
+		if self.text_renderers.is_empty() {
+			return input.to_string();
+		}
+		let key = (message.timestamp, content_index, input.to_string(), streaming);
+		if let Some(cached) = self.renderer_cache.borrow().get(&key).cloned() {
+			return cached;
+		}
+		let text = self.renderer_text(message, content_index, input, streaming);
+		self.renderer_cache.borrow_mut().insert(key, text.clone());
+		text
+	}
+
 	fn prose_rows(&self, width: u16, limit: usize) -> Vec<String> {
-		let Some(message) = self.message.as_ref() else {
+		let Some(message) = self.message.clone() else {
 			return Vec::new();
 		};
+		let last_text = message
+			.content
+			.iter()
+			.rposition(|content| matches!(content, AssistantContent::Text(_)));
 		let mut rows = Vec::new();
-		for content in &message.content {
+		for (index, content) in message.content.iter().enumerate() {
 			if let AssistantContent::Text(text) = content {
 				if canonicalize_message(Some(&text.text)).is_empty() {
 					continue;
 				}
+				let streaming = self.last_transient && !self.finalized && last_text == Some(index);
+				let rendered =
+					self.cached_renderer_text(&message, self.content_offset + index, &text.text, streaming);
 				let mut markdown = Markdown::new();
 				self.apply_prose_paint(&mut markdown);
-				markdown.set_text(text.text.clone());
+				markdown.set_text(rendered);
 				rows.extend(markdown.render(width));
 				if rows.len() >= limit {
 					rows.truncate(limit);
@@ -748,6 +835,10 @@ impl Component for AssistantMessageComponent {
 		let Some(message) = self.message.clone() else {
 			return Vec::new();
 		};
+		let last_text = message
+			.content
+			.iter()
+			.rposition(|content| matches!(content, AssistantContent::Text(_)));
 		let mut rows = Vec::new();
 		for (index, content) in message.content.iter().enumerate() {
 			match content {
@@ -760,7 +851,10 @@ impl Component for AssistantMessageComponent {
 					}
 					let mut markdown = Markdown::new();
 					self.apply_prose_paint(&mut markdown);
-					markdown.set_text(text.text.clone());
+					let streaming = self.last_transient && !self.finalized && last_text == Some(index);
+					let rendered = self
+						.cached_renderer_text(&message, self.content_offset + index, &text.text, streaming);
+					markdown.set_text(rendered);
 					rows.extend(markdown.render(width));
 				}
 				AssistantContent::Thinking(thinking) => {
@@ -826,6 +920,10 @@ impl crate::native::describe::NativeDescribe for AssistantMessageComponent {
 		let mut children = Vec::new();
 		let mut answered_text = false;
 		if let Some(message) = self.message.as_ref() {
+			let last_text = message
+				.content
+				.iter()
+				.rposition(|content| matches!(content, AssistantContent::Text(_)));
 			for (index, content) in message.content.iter().enumerate() {
 				match content {
 					AssistantContent::Text(text) => {
@@ -833,9 +931,12 @@ impl crate::native::describe::NativeDescribe for AssistantMessageComponent {
 							continue;
 						}
 						answered_text = true;
+						let streaming = self.last_transient && !self.finalized && last_text == Some(index);
+						let rendered =
+							self.renderer_text(message, self.content_offset + index, &text.text, streaming);
 						let source = match &self.text_color_transform {
-							Some(transform) => transform(&text.text),
-							None => text.text.clone(),
+							Some(transform) => transform(&rendered),
+							None => rendered,
 						};
 						children.push(keyed(md(source, Props::new()), format!("t{index}")));
 					}

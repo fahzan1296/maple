@@ -2607,7 +2607,7 @@ fn cut_below_whole_image(rows: &[String], cut: usize) -> usize {
 
 /// [`Self::cut_below_whole_image`] with an explicit protocol and capability
 /// profile, so tests need not touch the process-global terminal state.
-fn cut_below_whole_image_with_protocol(
+pub fn cut_below_whole_image_with_protocol(
 	rows: &[String],
 	cut: usize,
 	protocol: Option<ImageProtocol>,
@@ -2633,7 +2633,7 @@ fn cut_below_whole_image_with_protocol(
 /// Rows above its own line that an image direct-placement line paints over.
 ///
 /// Ported from `l/src/terminal-capabilities.ts` `directPlacementLift`.
-fn direct_placement_lift(line: &str) -> usize {
+pub fn direct_placement_lift(line: &str) -> usize {
 	let bytes = line.as_bytes();
 	if bytes.len() < 5 || bytes[0] != 0x1b || bytes[1] != b'7' || bytes[2] != 0x1b || bytes[3] != b'[' {
 		return 0;
@@ -2654,7 +2654,7 @@ fn direct_placement_lift(line: &str) -> usize {
 /// The encoded iTerm2 image payload of `line`, if any.
 ///
 /// Ported from `l/src/terminal-capabilities.ts` `iterm2ImagePayload`.
-fn iterm2_image_payload(line: &str) -> Option<String> {
+pub fn iterm2_image_payload(line: &str) -> Option<String> {
 	let marker = ImageProtocol::Iterm2.marker();
 	let start = line.find(marker)?;
 	let after_marker = start + marker.len();

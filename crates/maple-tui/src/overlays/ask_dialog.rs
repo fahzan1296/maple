@@ -562,8 +562,15 @@ impl<CB: AskDialogCallbacks> Component for AskDialogComponent<CB> {
 			}
 			Key::Char(' ') => self.toggle_or_select(),
 			Key::Enter => {
-				// last tab/row submit convenience
-				self.toggle_or_select();
+				let multi = self
+					.current_question()
+					.map(|q| q.multi == Some(true))
+					.unwrap_or(false);
+				// Single-select Enter picks the highlighted option; multi-select
+				// Enter submits the toggled selection unchanged.
+				if !multi {
+					self.toggle_or_select();
+				}
 				if self.tab_index + 1 >= self.questions.len() {
 					self.submit();
 				} else {

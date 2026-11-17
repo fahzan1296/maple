@@ -95,6 +95,89 @@ where
         .into_owned()
 }
 
+/// XTSMGRAPHICS query plus a DA1 sentinel, so a terminal that answers only
+/// DA1 resolves as unsupported.
+pub const XTSMGRAPHICS_QUERY: &str = "\x1b[?2;1;0S\x1b[c";
+
+/// Whether `sequence` is an XTSMGRAPHICS reply (`CSI ? 2 ; … S`).
+pub fn is_xtsmgraphics_reply(sequence: &str) -> bool {
+    sequence.starts_with("\x1b[?2;") && sequence.ends_with('S')
+}
+
+/// Parse a successful XTSMGRAPHICS reply into the terminal's maximum SIXEL
+/// geometry in pixels. Non-zero status replies are unsupported.
+pub fn parse_xtsmgraphics_reply(sequence: &str) -> Option<(u32, u32)> {
+    if !is_xtsmgraphics_reply(sequence) {
+        return None;
+    }
+    let body = sequence.strip_prefix("\x1b[?2;")?.strip_suffix('S')?;
+    let mut parts = body.split(';');
+    let status: u32 = parts.next()?.parse().ok()?;
+    if status != 0 {
+        return None;
+    }
+    let width = parts.next()?.parse().ok()?;
+    let height = parts.next()?.parse().ok()?;
+    Some((width, height))
+}
+
+/// SIXEL capability probe state.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SixelProbe {
+    max: Option<(u32, u32)>,
+    da1_seen: bool,
+}
+
+impl SixelProbe {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Bytes to write at startup.
+    #[must_use]
+    pub fn begin() -> &'static str {
+        XTSMGRAPHICS_QUERY
+    }
+
+    /// Consume one raw stdin sequence. Returns whether it belonged to the
+    /// probe (an XTSMGRAPHICS reply or the DA1 sentinel).
+    pub fn feed(&mut self, sequence: &str) -> bool {
+        if is_xtsmgraphics_reply(sequence) {
+            self.max = parse_xtsmgraphics_reply(sequence);
+            return true;
+        }
+        if crate::terminal::program_status::is_da1_response(sequence) {
+            self.da1_seen = true;
+            return true;
+        }
+        false
+    }
+
+    /// Whether the terminal reported a maximum SIXEL geometry.
+    #[must_use]
+    pub fn supported(&self) -> bool {
+        self.max.is_some()
+    }
+
+    /// The reported maximum geometry, if any.
+    #[must_use]
+    pub fn max(&self) -> Option<(u32, u32)> {
+        self.max
+    }
+
+    /// Whether a DA1 sentinel arrived.
+    #[must_use]
+    pub fn da1_seen(&self) -> bool {
+        self.da1_seen
+    }
+
+    /// Invalidate support (terminal restart).
+    pub fn stop(&mut self) {
+        self.max = None;
+        self.da1_seen = false;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

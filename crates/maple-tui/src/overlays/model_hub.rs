@@ -3213,7 +3213,7 @@ impl ModelHub {
 		for index in self.role_scroll_start..end {
 			let Some(row) = self.roles_rows.get(index) else { continue };
 			let selected = index == self.role_index;
-			let hovered = index == self.role_hover;
+			let hovered = Some(index) == self.role_hover;
 			let cursor = if selected && self.focus == HubFocus::List {
 				paint(&self.theme, "accent", &self.theme.nav().cursor)
 			} else {
@@ -3357,19 +3357,17 @@ impl ModelHub {
 	/// Paint the footer, including an open strip.
 	pub fn render_footer(&mut self, width: usize) -> String {
 		let hint = self.footer_hint();
-		let strip = self.strip.as_ref();
-		match strip {
-			Some(strip) => {
-				let rendered = self.render_strip(width, strip);
-				self.frame.render_footer(width, &hint, Some(&|| rendered.clone()), &self.theme)
-			}
-			None => self.frame.render_footer(width, &hint, None, &self.theme),
-		}
+		let Some(strip) = self.strip.take() else {
+			return self.frame.render_footer(width, &hint, None, &self.theme);
+		};
+		let rendered = self.render_strip(width, &strip);
+		self.strip = Some(strip);
+		self.frame.render_footer(width, &hint, Some(&|| rendered.clone()), &self.theme)
 	}
 
 	/// Paint one footer strip.
 #[must_use]
-	pub fn render_strip(&self, width: usize, strip: &StripState) -> String {
+	pub fn render_strip(&mut self, width: usize, strip: &StripState) -> String {
 		match strip {
 			StripState::Name { purpose, input, model, .. } => {
 				let label = match purpose {

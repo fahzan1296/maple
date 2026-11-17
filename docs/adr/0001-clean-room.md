@@ -79,3 +79,12 @@ tracks the mapping.
 
 If a module later requires a vendored dependency, that dependency must be
 listed in `THIRD-PARTY-NOTICES` with license and version before merge.
+
+## Amendment 2026-11-17
+
+The consequence above — "No third-party copyright lines are required beyond
+the reference table" — applies only to the reference source (`l/` and the
+`oh-my-pi`/`pi-messenger` specifications). It does not cover third-party
+crates: maple links crates.io crates as build dependencies, and each is
+attributed with its license and version in `THIRD-PARTY-NOTICES` (121 rows,
+runtime and transitive). Those notices are required and must be kept current.

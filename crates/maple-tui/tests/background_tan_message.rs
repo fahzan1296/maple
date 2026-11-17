@@ -31,11 +31,8 @@ fn renders_one_compact_line_with_job_and_work_not_the_raw_notice() {
 	);
 	assert!(is_background_tan_dispatch(&message));
 	let mut block = create_background_tan_dispatch_block(&message, &default_theme());
-	let lines: Vec<&String> = block
-		.render(120)
-		.iter()
-		.filter(|line| !line.trim().is_empty())
-		.collect();
+	let rows = block.render(120);
+	let lines: Vec<&String> = rows.iter().filter(|line| !line.trim().is_empty()).collect();
 	assert_eq!(lines.len(), 1);
 	let plain = maple_tui::strip_ansi(lines[0]);
 	assert!(plain.contains("job-42"), "{plain}");

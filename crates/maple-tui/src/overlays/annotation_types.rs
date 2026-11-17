@@ -88,18 +88,18 @@ pub struct CodeReviewOverlayResult {
 	pub annotations: Vec<CodeReviewAnnotation>,
 	pub draft: Option<AnnotationOverlayDraft>,
 }
-
 /// Provenance of text reviewed in the text review overlay.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum TextReviewSourceProvenance {
 	LatestAssistant { entry_id: String },
 	Session { entry_id: String },
 	File { path: String },
+	#[default]
 	Prompt,
 }
 
 /// Source material for a text review.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TextReviewSource {
 	pub id: String,
 	pub label: String,

@@ -154,6 +154,47 @@ pub fn visible_mcp_args(args: Option<&serde_json::Map<String, Value>>) -> Vec<(S
 		.collect()
 }
 
+/// A JSON value drawn by hosts that render JSON natively.
+fn json_node(value: &Value) -> crate::native::node::NativeNode {
+	use crate::native::node::{NativeNode, NodeKind, Props};
+	let mut props = Props::new();
+	props.insert("value", value.clone());
+	NativeNode::with_props(NodeKind::Json, props)
+}
+
+/// Drop host bookkeeping keys from a JSON result payload.
+fn strip_hidden_json(value: Value) -> Value {
+	match value {
+		Value::Object(mut map) => {
+			map.remove("__partialJson");
+			Value::Object(map)
+		}
+		other => other,
+	}
+}
+
+/// Folded `args` section carrying every visible argument value.
+fn args_section(
+	args: Option<&serde_json::Map<String, Value>>,
+) -> Option<crate::native::node::NativeNode> {
+	use crate::native::node::{NativeNode, NodeKind, Props};
+	let visible = visible_mcp_args(args);
+	if visible.is_empty() {
+		return None;
+	}
+	let mut map = serde_json::Map::new();
+	for (key, value) in visible {
+		map.insert(key, value);
+	}
+	let mut props = Props::new();
+	props.set_bool("collapsible", true);
+	props.set_bool("collapsed", true);
+	let mut section = NativeNode::with_props(NodeKind::Section, props);
+	section.key = Some("args".to_string());
+	section.children.push(json_node(&Value::Object(map)));
+	Some(section)
+}
+
 /// Plain render of an MCP call.
 pub fn render_call(label: &str, args: Option<&serde_json::Map<String, serde_json::Value>>) -> String {
 	let visible = visible_mcp_args(args);
@@ -217,6 +258,7 @@ pub fn describe_call(
 	}
 	NativeToolView {
 		head: Some(NodeText::Spans(tool_head(label, &details))),
+		body: args_section(args).map(|section| vec![section]),
 		inline: Some(true),
 		..NativeToolView::default()
 	}
@@ -228,6 +270,8 @@ pub fn describe_result(
 	is_error: bool,
 	label: Option<&str>,
 	details: Option<&McpToolDetails>,
+	args: Option<&serde_json::Map<String, Value>>,
+	json: bool,
 ) -> crate::tools::native_view::NativeToolView {
 	use crate::native::describe::text as ntext;
 	use crate::native::node::{NodeText, Props, Span, Tone};
@@ -240,15 +284,26 @@ pub fn describe_result(
 	let head = tool_head(title, &[]);
 	let body_text = output.trim_end();
 	if body_text.is_empty() {
+		let mut body = vec![note_text("No output", "dim", None)];
+		if let Some(section) = args_section(args) {
+			body.push(section);
+		}
 		return NativeToolView {
 			head: Some(NodeText::Spans(head)),
-			body: Some(vec![note_text("No output", "dim", None)]),
+			body: Some(body),
 			..NativeToolView::default()
 		};
 	}
 	let mut p = Props::new();
 	p.set_str("wrap", "word");
-	let mut body = vec![ntext(NodeText::Plain(body_text.to_string()), p)];
+	let mut body = if json {
+		match serde_json::from_str::<Value>(body_text) {
+			Ok(parsed) => vec![json_node(&strip_hidden_json(parsed))],
+			Err(_) => vec![ntext(NodeText::Plain(body_text.to_string()), p)],
+		}
+	} else {
+		vec![ntext(NodeText::Plain(body_text.to_string()), p)]
+	};
 	if let Some(d) = details {
 		if d
 			.mcp_meta
@@ -260,6 +315,9 @@ pub fn describe_result(
 				body.push(foot);
 			}
 		}
+	}
+	if let Some(section) = args_section(args) {
+		body.push(section);
 	}
 	NativeToolView {
 		head: Some(NodeText::Spans(head)),
@@ -296,7 +354,7 @@ mod render_describe_tests {
 		assert!(v.head.is_some());
 		let r = render_result("ok", false, None);
 		assert_eq!(r[0], "ok");
-		let d = describe_result("ok", false, Some("mcp__x__y"), None);
+		let d = describe_result("ok", false, Some("mcp__x__y"), None, Some(&map), false);
 		assert!(d.body.is_some());
 	}
 }

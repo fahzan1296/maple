@@ -414,6 +414,49 @@ pub fn render_search_call_line(query: Option<&str>) -> String {
 	if q.is_empty() { "Web Search".to_string() } else { format!("Web Search: {q}") }
 }
 
+/// Strip the markdown constructs the answer card consumes (headings and bold)
+/// and drop blank rows.
+fn answer_plain_lines(answer: &str) -> Vec<String> {
+	answer
+		.lines()
+		.map(|line| line.trim().trim_start_matches('#').trim_start().replace("**", ""))
+		.filter(|line| !line.is_empty())
+		.collect()
+}
+
+/// Plain framed search result: answer markdown, then cited sources.
+///
+/// `expanded` mirrors the reference switch; both expanded and collapsed keep
+/// the whole answer. Only an explicit `max_answer_lines` from compact mode
+/// caps it and appends a `… N more lines` summary.
+pub fn render_search_result(
+	arg_query: Option<&str>,
+	details: Option<&SearchRenderDetails>,
+	raw_text: &str,
+	expanded: bool,
+	max_answer_lines: Option<usize>,
+) -> Vec<String> {
+	let _ = expanded;
+	let summary = describe_search_result(arg_query, details, raw_text);
+	let mut lines = vec![" Answer ".to_string()];
+	if let Some(error) = summary.error {
+		lines.push(error);
+	} else if let Some(answer) = summary.answer {
+		let answer = answer_plain_lines(&answer);
+		let total = answer.len();
+		let shown = max_answer_lines.map_or(total, |limit| limit.max(1).min(total));
+		lines.extend(answer.into_iter().take(shown));
+		if total > shown {
+			lines.push(format!("… {} more lines", total - shown));
+		}
+	}
+	lines.push(" Sources ".to_string());
+	for source in summary.sources {
+		lines.push(format!("[{}] {} — {}", source.initial, source.title, source.url));
+	}
+	lines
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

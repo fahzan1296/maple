@@ -231,7 +231,7 @@ pub struct VimInsertRecord {
 
 /// Coarse character classification for word navigation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum WordNavKind {
+pub enum WordNavKind {
     Whitespace,
     Delimiter,
     Cjk,
@@ -243,7 +243,7 @@ enum WordNavKind {
 /// Coarse Unicode-aware character classification for word navigation (Option/Alt + Left/Right).
 /// This intentionally avoids language-specific word segmentation for predictability across
 /// scripts.
-fn word_nav_kind(grapheme: &str) -> WordNavKind {
+pub fn word_nav_kind(grapheme: &str) -> WordNavKind {
     let ch = match grapheme.chars().next() {
         Some(ch) => ch,
         None => return WordNavKind::Other,
@@ -274,7 +274,7 @@ fn word_nav_kind(grapheme: &str) -> WordNavKind {
 }
 
 /// Joiners kept inside a word run by word navigation.
-fn is_word_nav_joiner(grapheme: &str) -> bool {
+pub fn is_word_nav_joiner(grapheme: &str) -> bool {
     matches!(
         grapheme.chars().next(),
         Some('\'') | Some('\u{2019}') | Some('-') | Some('\u{2010}') | Some('\u{2011}')
@@ -534,7 +534,7 @@ fn word_end(text: &str, col: usize) -> usize {
 }
 
 /// Move the cursor one "word" to the left using Unicode-aware coarse navigation.
-fn move_word_left(text: &str, cursor: usize) -> usize {
+pub fn move_word_left(text: &str, cursor: usize) -> usize {
     let len = char_count(text);
     if len == 0 {
         return 0;
@@ -611,7 +611,7 @@ fn move_word_left(text: &str, cursor: usize) -> usize {
 }
 
 /// Move the cursor one "word" to the right using Unicode-aware coarse navigation.
-fn move_word_right(text: &str, cursor: usize) -> usize {
+pub fn move_word_right(text: &str, cursor: usize) -> usize {
     let len = char_count(text);
     if len == 0 {
         return 0;

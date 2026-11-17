@@ -17,10 +17,10 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use crate::overlays::annotation_types::{CodeReviewOverlayResult, TextReviewOverlayResult};
 use crate::overlays::annotation_types::{
-	AnnotationOverlayDraft, CodeReviewAnnotation, CodeReviewOverlayResult, ReviewDiffFile, ReviewDiffRow,
-	ReviewSourceRow, TextReviewAnnotation, TextReviewOverlayResult, TextReviewSource,
-	TextReviewSourceProvenance,
+	AnnotationOverlayDraft, CodeReviewAnnotation, ReviewDiffFile, ReviewDiffRow, ReviewSourceRow,
+	TextReviewAnnotation, TextReviewSource, TextReviewSourceProvenance,
 };
 use crate::text_shape::{Ellipsis, pad_to_width, truncate_to_width, visible_width, wrap_text_with_ansi};
 use crate::theme::{Theme, default_theme};

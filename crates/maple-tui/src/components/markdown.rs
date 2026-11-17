@@ -134,6 +134,13 @@ pub struct Markdown {
     on_link_click: Option<Box<dyn FnMut(&str)>>,
     prose_transform: Option<Box<dyn Fn(&str) -> String>>,
     text_transform: Option<Box<dyn Fn(&str) -> String>>,
+    transient_render_cache: bool,
+    last_text: String,
+    last_rows: Vec<String>,
+    last_width: u16,
+    fast_hits: usize,
+    render_generation: u64,
+    last_generation: u64,
     cache: Option<(String, usize, Vec<String>)>,
 }
 
@@ -223,6 +230,7 @@ fn is_block_start(line: &str) -> bool {
     fence_open(line).is_some()
         || parse_heading(line).is_some()
         || is_hr(line)
+        || is_html_block_start(line)
         || line.starts_with('>')
         || parse_list_item(line).is_some()
 }
@@ -341,6 +349,17 @@ fn parse_blocks(lines: &[String]) -> Vec<Block> {
         if is_hr(trimmed) {
             blocks.push(Block::Hr);
             index += 1;
+            continue;
+        }
+        if is_html_hr(trimmed) {
+            blocks.push(Block::Hr);
+            index += 1;
+            continue;
+        }
+        if is_blockquote_start(trimmed) {
+            let (inner, next) = collect_blockquote(lines, index);
+            blocks.push(Block::Quote(parse_blocks(&inner)));
+            index = next;
             continue;
         }
         if trimmed.starts_with('>') {
@@ -488,6 +507,187 @@ fn escape_len(input: &str) -> usize {
     }
 }
 
+/// A `~~` opener when the run is exactly two tildes and starts real text.
+fn strike_open_ok(src: &str, index: usize) -> bool {
+    let bytes = src.as_bytes();
+    if bytes.len() < index + 2 || bytes[index] != b'~' || bytes[index + 1] != b'~' {
+        return false;
+    }
+    if index > 0 && bytes[index - 1] == b'~' {
+        return false;
+    }
+    match bytes.get(index + 2) {
+        Some(byte) => *byte != b'~' && !byte.is_ascii_whitespace(),
+        None => false,
+    }
+}
+
+/// First GFM-valid `~~` closer at or after `from`: exactly two tildes, real
+/// text before it, and no third tilde after it.
+fn find_strike_closer(src: &str, from: usize) -> Option<usize> {
+    let bytes = src.as_bytes();
+    let mut index = from;
+    while index + 1 < bytes.len() {
+        if bytes[index] == b'\\' {
+            index += 2;
+            continue;
+        }
+        if bytes[index] == b'~' && bytes[index + 1] == b'~' {
+            let before_ok = index > from
+                && bytes[index - 1] != b'~'
+                && !bytes[index - 1].is_ascii_whitespace();
+            let after_ok = bytes.get(index + 2) != Some(&b'~');
+            if before_ok && after_ok {
+                return Some(index);
+            }
+            index += 2;
+            continue;
+        }
+        index += 1;
+    }
+    None
+}
+
+/// Split an inline HTML tag: `(name, inner, next, closed)`. `next` is the byte
+/// offset just past the tag (or its closing tag). Void tags (`hr`, `br`) stop
+/// at the opening tag; an unclosed tag swallows the rest as its content.
+fn parse_html_inline(src: &str) -> Option<(String, String, usize, bool)> {
+    let rest = src.strip_prefix('<')?;
+    let close = rest.find('>')?;
+    let raw_name = rest[..close].split_whitespace().next().unwrap_or("");
+    let name = raw_name.trim_start_matches('/').to_ascii_lowercase();
+    if name.is_empty() {
+        return None;
+    }
+    let after_open = close + 1;
+    if name == "hr" || name == "br" {
+        return Some((name, String::new(), after_open, false));
+    }
+    if let Some(start) = find_close_tag(src, after_open, &name) {
+        let end = src[start..].find('>').map(|at| start + at + 1).unwrap_or(src.len());
+        Some((name, src[after_open..start].to_string(), end, true))
+    } else {
+        Some((name, src[after_open..].to_string(), src.len(), false))
+    }
+}
+
+/// Decode `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`, `&#NN;` and `&#xNN;`.
+fn decode_entities(input: &str) -> String {
+    if !input.contains('&') {
+        return input.to_string();
+    }
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(at) = rest.find('&') {
+        out.push_str(&rest[..at]);
+        let tail = &rest[at..];
+        match decode_entity(tail) {
+            Some((ch, len)) => {
+                out.push(ch);
+                rest = &tail[len..];
+            }
+            None => {
+                out.push('&');
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn decode_entity(tail: &str) -> Option<(char, usize)> {
+    let rest = tail.strip_prefix('&')?;
+    for (name, ch) in [
+        ("amp;", '&'),
+        ("lt;", '<'),
+        ("gt;", '>'),
+        ("quot;", '"'),
+        ("apos;", '\''),
+    ] {
+        if rest.strip_prefix(name).is_some() {
+            return Some((ch, 1 + name.len()));
+        }
+    }
+    let digits = rest.strip_prefix('#')?;
+    let (hex, digits) = match digits.strip_prefix('x').or_else(|| digits.strip_prefix('X')) {
+        Some(rest) => (true, rest),
+        None => (false, digits),
+    };
+    let end = digits.find(';')?;
+    let code = if hex {
+        u32::from_str_radix(&digits[..end], 16).ok()?
+    } else {
+        digits[..end].parse::<u32>().ok()?
+    };
+    let ch = char::from_u32(code)?;
+    Some((ch, 2 + usize::from(hex) + end + 1))
+}
+
+/// Byte offset of `</name` at or after `from`, ASCII case-insensitive.
+fn find_close_tag(src: &str, from: usize, name: &str) -> Option<usize> {
+    let bytes = src.as_bytes();
+    let needle = name.as_bytes();
+    let mut index = from;
+    while index + needle.len() + 1 < bytes.len() {
+        if bytes[index] == b'<' && bytes[index + 1] == b'/' {
+            let mut matches = true;
+            for (offset, byte) in needle.iter().enumerate() {
+                if bytes[index + 2 + offset].to_ascii_lowercase() != *byte {
+                    matches = false;
+                    break;
+                }
+            }
+            if matches {
+                return Some(index);
+            }
+        }
+        index += 1;
+    }
+    None
+}
+
+fn is_html_hr(line: &str) -> bool {
+    let lower = line.trim().to_ascii_lowercase();
+    lower == "<hr>" || lower == "<hr/>"
+}
+
+fn is_blockquote_start(line: &str) -> bool {
+    line.trim_start().to_ascii_lowercase().starts_with("<blockquote")
+}
+
+fn is_html_block_start(line: &str) -> bool {
+    is_html_hr(line) || is_blockquote_start(line)
+}
+
+/// Collect a `<blockquote>…</blockquote>` block, dropping the wrapper tags.
+fn collect_blockquote(lines: &[String], index: usize) -> (Vec<String>, usize) {
+    let mut inner = Vec::new();
+    let mut cursor = index;
+    let mut opened = false;
+    while cursor < lines.len() {
+        let mut line = lines[cursor].trim_start().to_string();
+        if !opened {
+            if let Some(at) = line.find('>') {
+                line = line[at + 1..].to_string();
+                opened = true;
+            }
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some(at) = lower.find("</blockquote") {
+            let end = line[at..].find('>').map(|offset| at + offset + 1).unwrap_or(line.len());
+            let before = line[..at].trim_end().to_string();
+            if !before.is_empty() {
+                inner.push(before);
+            }
+            return (inner, cursor + 1);
+        }
+        inner.push(line);
+        cursor += 1;
+    }
+    (inner, cursor)
+}
+
 fn parse_link(rest: &str) -> Option<(String, String, usize)> {
     let close = rest.find(']')?;
     if !rest[close + 1..].starts_with('(') {
@@ -530,6 +730,7 @@ fn render_inline_impl(
             return;
         }
         let text = std::mem::take(plain);
+        let text = decode_entities(&text);
         if let Some(transform) = text_transform {
             out.push_str(&transform(&text));
         } else if prose_enabled {
@@ -558,6 +759,57 @@ fn render_inline_impl(
             Some(c) => c,
             None => break,
         };
+        if c == '\\' && src[index..].starts_with("\\\n") {
+            plain.push('\n');
+            index += 2;
+            continue;
+        }
+        if c == '\\' && src[index..].starts_with("\\~") {
+            plain.push('~');
+            index += 2;
+            continue;
+        }
+        if c == '<' {
+            if let Some((name, inner, next, _closed)) = parse_html_inline(&src[index..]) {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
+                match name.as_str() {
+                    "code" => out.push_str(&theme.code.paint(&decode_entities(&inner))),
+                    "b" | "strong" => {
+                        let styled = render_inline_impl(
+                            &decode_entities(&inner),
+                            theme,
+                            images,
+                            false,
+                            text_transform,
+                            prose_transform,
+                        );
+                        out.push_str(&theme.bold.paint(&styled));
+                    }
+                    "i" | "em" => {
+                        let styled = render_inline_impl(
+                            &decode_entities(&inner),
+                            theme,
+                            images,
+                            false,
+                            text_transform,
+                            prose_transform,
+                        );
+                        out.push_str(&theme.italic.paint(&styled));
+                    }
+                    "hr" | "br" => out.push('\n'),
+                    _ => out.push_str(&render_inline_impl(
+                        &decode_entities(&inner),
+                        theme,
+                        images,
+                        false,
+                        text_transform,
+                        prose_transform,
+                    )),
+                }
+                index += next;
+                continue;
+            }
+        }
         if c == '`' {
             if let Some(end) = src[index + 1..].find('`') {
                 flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
@@ -585,14 +837,14 @@ fn render_inline_impl(
                 continue;
             }
         }
-        if c == '~' && src[index..].starts_with("~~") {
-            if let Some(end) = src[index + 2..].find("~~") {
+        if c == '~' && src[index..].starts_with("~~") && strike_open_ok(src, index) {
+            if let Some(end) = find_strike_closer(src, index + 2) {
                 flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
-                let inner = &src[index + 2..index + 2 + end];
+                let inner = &src[index + 2..end];
                 let styled =
                     render_inline_impl(inner, theme, images, false, text_transform, prose_transform);
                 out.push_str(&theme.strikethrough.paint(&styled));
-                index = index + 2 + end + 2;
+                index = end + 2;
                 continue;
             }
         }
@@ -632,7 +884,7 @@ fn render_inline_impl(
                 let label =
                     render_inline_impl(&text, theme, images, false, text_transform, prose_transform);
                 let extension = !url.is_empty()
-                    && crate::render::extension_links::extension_link_scheme(url).is_some();
+                    && crate::render::extension_links::extension_link_scheme(&url).is_some();
                 let style = if extension {
                     Style::merge(theme.extension_link, theme.underline)
                 } else {
@@ -657,6 +909,48 @@ fn render_inline_impl(
 /// Render inline markdown (styles, links, math) without block layout.
 pub fn render_inline_markdown(src: &str, theme: &MarkdownTheme) -> String {
     render_inline(src, theme, true)
+}
+
+/// Whether a grown line's start is a block marker, HR, or reference
+/// definition — shapes whose cold lex differs from a paragraph splice.
+#[must_use]
+pub fn fast_line_start_hazard(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    let Some(first) = trimmed.chars().next() else {
+        return false;
+    };
+    match first {
+        '#' | '>' | '|' => true,
+        '-' | '+' | '*' => {
+            trimmed.starts_with("- ")
+                || trimmed.starts_with("+ ")
+                || trimmed.starts_with("* ")
+                || trimmed.chars().all(|ch| ch == first)
+        }
+        '=' | '═' | '─' => trimmed.chars().all(|ch| ch == first),
+        '[' => trimmed.contains("]: "),
+        _ => {
+            if !first.is_ascii_digit() {
+                return false;
+            }
+            let rest = trimmed.trim_start_matches(|ch: char| ch.is_ascii_digit());
+            rest.starts_with(". ") || rest.starts_with(") ")
+        }
+    }
+}
+
+/// Whether `text` is inert prose: no ANSI, no markdown marker that could pair
+/// or complete across a splice seam.
+fn inert_prose(text: &str) -> bool {
+    !text.contains('\u{1b}')
+        && text.chars().all(|ch| {
+            ch.is_alphanumeric()
+                || ch.is_whitespace()
+                || matches!(
+                    ch,
+                    '.' | ',' | ';' | ':' | '\'' | '"' | '!' | '?' | '(' | ')' | '-'
+                )
+        })
 }
 
 fn scan_links(src: &str, out: &mut Vec<String>) {
@@ -996,6 +1290,13 @@ impl Markdown {
             on_link_click: None,
             prose_transform: None,
             text_transform: None,
+            transient_render_cache: false,
+            last_text: String::new(),
+            last_rows: Vec::new(),
+            last_width: 0,
+            fast_hits: 0,
+            render_generation: 0,
+            last_generation: 0,
             cache: None,
         }
     }
@@ -1017,7 +1318,7 @@ impl Markdown {
     /// Show or hide inline `![alt](url)` images.
     pub fn set_images_visible(&mut self, visible: bool) {
         self.images_visible = visible;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Whether inline images are shown.
@@ -1028,7 +1329,7 @@ impl Markdown {
     /// Show or hide fenced `chart`/`mermaid` blocks.
     pub fn set_table_charts_visible(&mut self, visible: bool) {
         self.table_charts_visible = visible;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Whether fenced chart blocks are shown.
@@ -1039,7 +1340,7 @@ impl Markdown {
     /// Show or hide image placeholders inside `tool_result` code blocks.
     pub fn set_tool_result_images_visible(&mut self, visible: bool) {
         self.tool_result_images_visible = visible;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Whether `tool_result` image placeholders are shown.
@@ -1055,21 +1356,40 @@ impl Markdown {
     /// Replace the theme.
     pub fn set_theme(&mut self, theme: MarkdownTheme) {
         self.theme = theme;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Paint every plain run through `transform`, including md-owned spans
     /// (live-command output contract). Wins over the paragraph prose paint.
     pub fn set_text_transform(&mut self, transform: Option<Box<dyn Fn(&str) -> String>>) {
         self.text_transform = transform;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Paint plain paragraph runs through `transform` (`proseFg` token
     /// contract): headings and links keep their own `md*` tokens.
     pub fn set_prose_transform(&mut self, transform: Option<Box<dyn Fn(&str) -> String>>) {
         self.prose_transform = transform;
+        self.bump_generation();
+    }
+
+    /// Enable the transient (streaming) render cache. While enabled, an
+    /// append-only prose delta re-wraps only the grown tail row; any hazard
+    /// (marker, style, newline, width change) falls back to a cold re-lex.
+    pub fn set_transient_render_cache(&mut self, enabled: bool) {
+        if self.transient_render_cache == enabled {
+            return;
+        }
+        self.transient_render_cache = enabled;
+        self.last_text.clear();
+        self.last_rows.clear();
         self.invalidate();
+    }
+
+    /// How many renders took the fast tail splice.
+    #[must_use]
+    pub fn fast_path_hits(&self) -> usize {
+        self.fast_hits
     }
 
     /// The active theme.
@@ -1081,13 +1401,13 @@ impl Markdown {
     pub fn set_padding(&mut self, x: u16, y: u16) {
         self.padding_x = x;
         self.padding_y = y;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Set the code block body indent.
     pub fn set_code_block_indent(&mut self, indent: usize) {
         self.theme.code_block_indent = indent;
-        self.invalidate();
+        self.bump_generation();
     }
 
     /// Every link destination in the document, in reading order.
@@ -1109,6 +1429,13 @@ impl Markdown {
     /// Drop the render cache; the next render rebuilds from state.
     pub fn invalidate(&mut self) {
         self.cache = None;
+    }
+
+    /// Invalidate the cache and mark the configuration changed, so a transient
+    /// tail splice cannot reuse rows rendered under the previous inputs.
+    fn bump_generation(&mut self) {
+        self.render_generation = self.render_generation.wrapping_add(1);
+        self.invalidate();
     }
 
     fn render_blocks(&self, blocks: &[Block], width: usize) -> Vec<String> {
@@ -1461,6 +1788,61 @@ impl Markdown {
             symbols.bottom_right
         ));
     }
+
+    /// Re-wrap only the grown tail row for an append-only inert prose delta.
+    /// Returns `None` for every hazard (style, marker, newline, width change),
+    /// so the caller falls back to a cold re-lex.
+    fn fast_tail_rows(&mut self, width: usize) -> Option<Vec<String>> {
+        if !self.transient_render_cache
+            || self.padding_x > 0
+            || self.padding_y > 0
+            || self.text_transform.is_some()
+            || self.prose_transform.is_some()
+            || self.theme.prose.is_some()
+            || self.last_rows.is_empty()
+            || self.last_width as usize != width
+            || !self.text.starts_with(&self.last_text)
+            || self.render_generation != self.last_generation
+        {
+            return None;
+        }
+        let delta = &self.text[self.last_text.len()..];
+        if delta.is_empty() || delta.contains('\n') || delta.contains('\r') {
+            return None;
+        }
+        if !inert_prose(&self.last_text) || !inert_prose(delta) {
+            return None;
+        }
+        let last_row = self.last_rows.last()?;
+        let last_chars = last_row.trim_end_matches(' ').chars().count();
+        let prev_chars = self.last_text.chars().count();
+        let src_start = prev_chars.checked_sub(last_chars)?;
+        let src_byte = self
+            .last_text
+            .char_indices()
+            .nth(src_start)
+            .map(|(index, _)| index)
+            .unwrap_or(self.last_text.len());
+        let tail = self.text.get(src_byte..)?;
+        let at_line_start =
+            src_byte == 0 || self.text.as_bytes().get(src_byte - 1) == Some(&b'\n');
+        if at_line_start {
+            let first_line = tail.split('\n').next().unwrap_or(tail);
+            if fast_line_start_hazard(first_line) {
+                return None;
+            }
+        }
+        let mut rows = self.last_rows.clone();
+        rows.pop();
+        for line in wrap_text_with_ansi(tail, width) {
+            rows.push(pad_to_width(&truncate_to_width(&line, width, Ellipsis::Omit), width));
+        }
+        self.fast_hits += 1;
+        self.last_text = self.text.clone();
+        self.last_rows = rows.clone();
+        self.last_generation = self.render_generation;
+        Some(rows)
+    }
 }
 
 impl Component for Markdown {
@@ -1474,6 +1856,10 @@ impl Component for Markdown {
         if self.text.trim().is_empty() {
             self.cache = Some((self.text.clone(), width, Vec::new()));
             return Vec::new();
+        }
+        if let Some(rows) = self.fast_tail_rows(width) {
+            self.cache = Some((self.text.clone(), width, rows.clone()));
+            return rows;
         }
         let padding_x = (self.padding_x as usize).min(width / 2);
         let content_width = width.saturating_sub(2 * padding_x).max(1);
@@ -1496,6 +1882,10 @@ impl Component for Markdown {
         for _ in 0..self.padding_y {
             rows.push(pad_to_width("", width));
         }
+        self.last_text = self.text.clone();
+        self.last_rows = rows.clone();
+        self.last_width = width as u16;
+        self.last_generation = self.render_generation;
         self.cache = Some((self.text.clone(), width, rows.clone()));
         rows
     }

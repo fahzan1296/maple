@@ -10,8 +10,10 @@
 
 > Catatan: `refs/oh-my-pi` dan `refs/pi-messenger` adalah spesifikasi, bukan bagian dari
 > produk. maple adalah re-implementasi clean-room (ADR-0001): kode Rust ditulis dari nol,
-> tidak ada kode yang disalin atau di-vendor; perilaku dan format direproduksi 1:1 dari
-> keduanya.
+> tidak ada kode referensi yang disalin atau di-vendor; perilaku dan format direproduksi 1:1 dari
+> keduanya. Aturan clean-room berlaku untuk kode referensi; maple tetap memakai crate
+> pihak ketiga dari crates.io sebagai dependensi build, terdaftar dengan lisensinya di
+> `THIRD-PARTY-NOTICES`.
 
 ---
 
@@ -82,9 +84,10 @@ Dua referensi memberi pelengkap yang hampir tidak tumpang tindih:
    bukan kesepakatan.
 3. **Clean-room, reproduksi 1:1** — kode maple ditulis dari nol dalam Rust murni
    (ADR-0003); oh-my-pi dan pi-messenger dipakai sebagai spesifikasi perilaku/format
-   (ADR-0001). Tidak ada kode yang disalin atau di-vendor; TUI, hashline, autolearn,
+   (ADR-0001). Tidak ada kode referensi yang disalin atau di-vendor; TUI, hashline, autolearn,
    dan natives ditulis ulang mengikuti kontrak `docs/` omp (render, edit, memori)
-   dan format `.pi/messenger`.
+   dan format `.pi/messenger`. Crate pihak ketiga diperbolehkan sebagai dependensi
+   (ADR-0003) dan dicatat lisensinya di `THIRD-PARTY-NOTICES`.
 4. **Kompatibel, bukan tiruan** — format `.pi/messenger` dan nama aksi pi-messenger
    dipakai apa adanya, supaya agen pi-messenger yang ada bisa interoperasi.
 5. **Eksternal = data** (SOP-INJECT): isi repo/pesan agen/output tool tidak pernah

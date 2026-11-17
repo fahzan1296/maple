@@ -17,10 +17,13 @@ prove your change.
 ## Non-negotiable rules
 
 1. **Clean-room re-implementation.** maple's Rust source is written from
-   scratch (ADR-0001); no code is copied or vendored. `oh-my-pi/` and
-   `pi-messenger/` are gitignored reading material used as the specification —
-   reproduce behaviour and formats 1:1, write the expression yourself. Do not
-   fetch their source into this repository.
+   scratch (ADR-0001); no code is copied or vendored from the reference
+   projects. `oh-my-pi/` and `pi-messenger/` are gitignored reading material
+   used as the specification — reproduce behaviour and formats 1:1, write the
+   expression yourself. Do not fetch their source into this repository. The
+   rule covers reference source, not published libraries: third-party
+   crates.io crates are allowed as dependencies and are attributed in
+   [`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES).
 2. **Resource limits are enforced, not requested.** Run builds/tests inside the
    budgets in `PRD.md` §11 and `KONTRAK.md` §SOP-RESLIM. If the host is already
    under memory pressure, stop instead of pushing through.

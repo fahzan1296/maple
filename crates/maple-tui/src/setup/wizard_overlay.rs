@@ -128,7 +128,10 @@ impl SetupWizardComponent {
 	/// Start the wizard. When nothing applies it completes immediately.
 	pub fn run(&mut self) {
 		if self.scenes.is_empty() || !self.scenes.iter().any(setup_scene_applies) {
-			self.complete();
+			// Nothing is shown, so no frame is requested; the reference resolves
+			// without painting.
+			self.phase = WizardPhase::Done;
+			self.done = true;
 			return;
 		}
 		self.phase = WizardPhase::Splash;

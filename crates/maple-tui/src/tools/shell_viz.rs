@@ -565,6 +565,223 @@ pub fn decode_shell_presentation(json: &str) -> Result<ShellVizPresentation, Str
     serde_json::from_str(json).map_err(|error| error.to_string())
 }
 
+/// One retained shell-trace event (the portable subset of the native `RunTrace`
+/// history the transcript playback consumes).
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellTraceEvent {
+	/// Lifecycle kind: `RunStart`, `CmdStart`, `Output`, `CmdEnd`, `RunEnd`.
+	pub kind: String,
+	/// Monotonic sequence number.
+	pub seq: u64,
+	/// Event timestamp in nanoseconds from the run origin.
+	pub t_ns: u64,
+	/// Captured output text, when `kind` is `Output`.
+	#[serde(default)]
+	pub text: Option<String>,
+	/// Command duration in nanoseconds, when `kind` is `CmdEnd`.
+	#[serde(default)]
+	pub dur_ns: Option<u64>,
+	/// Byte offset of the event's source range, when the engine retained one.
+	#[serde(default)]
+	pub start: Option<usize>,
+	/// Byte offset of the end of the event's source range.
+	#[serde(default)]
+	pub end: Option<usize>,
+}
+
+/// A retained shell trace: the command plus its ordered lifecycle history.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellTrace {
+	pub seq: u64,
+	pub t_ns: u64,
+	pub script: String,
+	#[serde(default)]
+	pub history: Vec<ShellTraceEvent>,
+	#[serde(default)]
+	pub history_truncated: bool,
+}
+
+/// Deterministic replay of a retained [`ShellTrace`] for transcript playback.
+///
+/// The native `RunTrace` owner is Bun-only, so this controller owns the replay
+/// clock and exposes the same playback actions (`play`, `pause`, `reset`,
+/// `seek:N`) the transcript's shell visualization consumes.
+pub struct ShellVizPlayback {
+	trace: ShellTrace,
+	preferences: ShellVizPreferences,
+	result_output: String,
+	visualization_enabled: bool,
+	origin_ns: u64,
+	end_ns: u64,
+	clock_ns: u64,
+	playing: bool,
+}
+
+impl ShellVizPlayback {
+	pub fn new(trace: ShellTrace, preferences: ShellVizPreferences) -> Self {
+		let origin_ns = trace.history.first().map(|event| event.t_ns).unwrap_or(0);
+		let end_ns = trace
+			.history
+			.last()
+			.map(|event| event.t_ns)
+			.unwrap_or(origin_ns)
+			.max(origin_ns);
+		ShellVizPlayback {
+			trace,
+			preferences,
+			result_output: String::new(),
+			visualization_enabled: true,
+			origin_ns,
+			end_ns,
+			clock_ns: origin_ns,
+			playing: false,
+		}
+	}
+
+	/// Whether the transcript asked for the interactive visualization.
+	pub fn set_visualization_enabled(&mut self, enabled: bool) {
+		self.visualization_enabled = enabled;
+	}
+
+	pub fn visualization_enabled(&self) -> bool {
+		self.visualization_enabled
+	}
+
+	/// Output reported by the tool result, shown beside the command when the
+	/// visualization is disabled or cannot be restored.
+	pub fn set_result_output(&mut self, output: impl Into<String>) {
+		self.result_output = output.into();
+	}
+
+	/// Whether the retained offsets still point inside `script`; a tool_result
+	/// hook may rewrite `script` after the trace was captured.
+	pub fn restorable(&self) -> bool {
+		!self.trace.history.is_empty()
+			&& self.trace.history.iter().all(|event| {
+				event.start.map_or(true, |start| start <= self.trace.script.len())
+					&& event.end.map_or(true, |end| end <= self.trace.script.len())
+			})
+	}
+
+	/// Output captured at or before the replay clock.
+	pub fn output(&self) -> String {
+		self.trace
+			.history
+			.iter()
+			.filter(|event| event.kind == "Output" && event.t_ns <= self.clock_ns)
+			.filter_map(|event| event.text.clone())
+			.collect()
+	}
+
+	/// Retained frame count reached by the replay clock.
+	pub fn cursor(&self) -> f64 {
+		self.trace
+			.history
+			.iter()
+			.filter(|event| event.t_ns <= self.clock_ns)
+			.count() as f64
+	}
+
+	pub fn running(&self) -> bool {
+		self.playing
+	}
+
+	/// Apply a transcript playback action.
+	pub fn action(&mut self, action: &str) {
+		match action {
+			"play" => {
+				if self.clock_ns >= self.end_ns {
+					self.clock_ns = self.origin_ns;
+				}
+				self.playing = true;
+			}
+			"pause" => self.playing = false,
+			"reset" => {
+				self.clock_ns = self.origin_ns;
+				self.playing = false;
+			}
+			_ => {
+				if let Some(value) = action.strip_prefix("seek:") {
+					if let Ok(index) = value.parse::<usize>() {
+						self.clock_ns = self
+							.trace
+							.history
+							.get(index)
+							.map(|event| event.t_ns)
+							.unwrap_or(self.end_ns);
+						self.playing = false;
+					}
+				}
+			}
+		}
+	}
+
+	/// Advance the replay clock while playing.
+	pub fn advance(&mut self, milliseconds: f64) {
+		if !self.playing {
+			return;
+		}
+		self.clock_ns = self
+			.clock_ns
+			.saturating_add((milliseconds.max(0.0) * 1_000_000.0) as u64);
+		if self.clock_ns >= self.end_ns {
+			self.clock_ns = self.end_ns;
+			self.playing = false;
+		}
+	}
+
+	/// The presentation the transcript describes, or `None` when the
+	/// visualization is disabled or the trace cannot be restored.
+	pub fn presentation(&self) -> Option<ShellVizPresentation> {
+		if !self.visualization_enabled || !self.restorable() {
+			return None;
+		}
+		let cursor = self.cursor();
+		Some(ShellVizPresentation {
+			timeline: ShellVizTimeline {
+				length: self.trace.history.len() as f64,
+				cursor,
+				elapsed_ns: (self.clock_ns - self.origin_ns) as f64,
+				duration_ns: (self.end_ns - self.origin_ns) as f64,
+				trimmed: Some(self.trace.history_truncated),
+			},
+			preferences: ShellVizPreferences {
+				playing: self.playing,
+				cursor: Some(cursor),
+				..self.preferences.clone()
+			},
+			rows: Vec::new(),
+			original: Vec::new(),
+			output: self.output(),
+			running: Some(self.playing),
+			executing: false,
+			watches: Vec::new(),
+			message: None,
+		})
+	}
+
+	/// Render the transcript's shell card: the visualization when enabled and
+	/// restorable, otherwise the plain command and captured output.
+	pub fn render_lines(&self, theme: &Theme, width: u16) -> Vec<String> {
+		if let Some(mut presentation) = self.presentation() {
+			// Replay renders a sanitized copy; retained trace bytes stay intact.
+			presentation.output = crate::strip_ansi(&presentation.output);
+			return render_shell_visualization(&presentation, theme, width, true);
+		}
+		let mut lines = vec![shell_viz_text(&self.trace.script)];
+		if !self.result_output.is_empty() {
+			lines.push(shell_viz_text(&self.result_output));
+		}
+		let output = self.output();
+		if !output.is_empty() {
+			lines.push(shell_viz_text(&output));
+		}
+		lines
+	}
+}
+
 /// Nerd Font glyphs replacing the whole `🔇 out|err|silent` /dev/null badge.
 const DISCARD_ICONS: [(&str, &str); 3] = [
     ("badge-discard-out", "\u{f164d}"),

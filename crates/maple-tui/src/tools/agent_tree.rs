@@ -322,7 +322,7 @@ pub fn render_agent_tree_row_themed(options: &AgentTreeRowOptions, theme: &Theme
 	let model = if is_feed_model_badge_enabled() && (task || options.model.is_some()) {
 		format_feed_model_badge(
 			options.model.as_deref(),
-			options.thinking_level.as_ref().map(|level| crate::thinking::ConfiguredThinkingLevel::parse_configured_thinking_level(Some(&level.0)).unwrap_or(crate::thinking::ConfiguredThinkingLevel::Inherit)),
+			options.thinking_level.as_ref().map(|level| crate::thinking::parse_configured_thinking_level(Some(&level.0)).unwrap_or(crate::thinking::ConfiguredThinkingLevel::Inherit)),
 			options.advisor,
 			theme,
 			model_width.min(FEED_MODEL_BADGE_WIDTH),

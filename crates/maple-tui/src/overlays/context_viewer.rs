@@ -111,6 +111,10 @@ impl<C: ContextViewerCallbacks> ContextViewer<C> {
 			theme: OverlayTheme::default(),
 		}
 	}
+	/// The host callbacks this viewer was built with.
+	pub fn callbacks(&self) -> &C {
+		&self.callbacks
+	}
 
 	pub fn set_theme(&mut self, theme: OverlayTheme) {
 		self.theme = theme;

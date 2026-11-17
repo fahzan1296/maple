@@ -2,14 +2,14 @@
 //!
  //! Reference: `l/src/tools/job-widget.ts`.
  //!
- //! Deviations:
-//! - True TUI chart painting (ANSI sparklines/progress bars/tiles/hovercards/
-//!   interactive composition) requires dedicated chart rendering components not
-//!   present; structural/text summaries and block listing are provided.
+//! Deviations:
+//! - ANSI sparklines/progress bars/tiles are drawn with the crate's
+//!   `components::sparkline` glyph mapping and plain-string progress bars;
+//!   native chart/meter/badge describe nodes carry the host-rendered visuals.
 //! - Themed string helpers take `&Theme`; native describe emits token-styled
 //!   nodes for host theme-aware rendering.
 use crate::components::sparkline::{fit_spark_values, spark_glyph};
-use crate::native::describe::{col, compact, elapsed, keyed, node, row, span as nspan, stable_key, text as ntext};
+use crate::native::describe::{col, elapsed, keyed, node, row, span as nspan, stable_key, text as ntext};
 use crate::native::node::{NodeKind, NodeText, Props, Span, Tone};
 use crate::text_shape::{pad_to_width, truncate_to_width, visible_width, Ellipsis};
 use regex::Regex;
@@ -576,7 +576,10 @@ fn ansi_label_width(blocks: &[&JobWidgetBlock], width: usize) -> usize {
 	let mut widest = 0usize;
 	for block in blocks {
 		match block {
-			JobWidgetBlock::Spark(block) | JobWidgetBlock::Meter(block) => {
+			JobWidgetBlock::Spark(block) => {
+				widest = widest.max(visible_width(&plain_line(&block.label)));
+			}
+			JobWidgetBlock::Meter(block) => {
 				widest = widest.max(visible_width(&plain_line(&block.label)));
 			}
 			JobWidgetBlock::Grid(block) => {
@@ -594,7 +597,7 @@ fn ansi_label_width(blocks: &[&JobWidgetBlock], width: usize) -> usize {
 		return 0;
 	}
 	let cap = ANSI_LABEL_MAX.min((width.saturating_sub(INDENT.len())) / 3);
-	widest.clamp(ANSI_LABEL_MIN, cap).max(0)
+	widest.max(ANSI_LABEL_MIN).min(cap).max(0)
 }
 
 fn render_block_lines(
@@ -710,8 +713,8 @@ fn ansi_spark(block: &JobWidgetSparkBlock, values: &[f64], theme: &crate::theme:
 			continue;
 		}
 		let fraction = if span > 0.0 {
-			(value - min) / span
-		} else if value > min {
+			(*value - min) / span
+		} else if *value > min {
 			1.0
 		} else {
 			0.0
@@ -834,7 +837,7 @@ fn job_widget_glance_spans(glance: &JobWidgetGlance) -> Vec<Span> {
 }
 
 fn describe_head(view: &JobWidgetView) -> crate::native::node::NativeNode {
-	let stage = view.stage.as_deref().map(plain_line).filter(|s| !s.is_empty()).unwrap_or("");
+	let stage = view.stage.as_deref().map(plain_line).filter(|s| !s.is_empty()).unwrap_or_default();
 	let headline = headline_glance(view);
 	let mut title_props = Props::new();
 	title_props.set_str("role", "omp.job.widget.title");
@@ -921,13 +924,13 @@ fn spark_chart_props(block: &JobWidgetSparkBlock, role: &str, size: &str, grow: 
 		.map(|(index, value)| {
 			let mut item = serde_json::Map::new();
 			item.insert("value".into(), serde_json::json!(value));
-			if let Some(tip) = block.tips.get(index).map(plain_line).filter(|tip| !tip.is_empty()) {
+			if let Some(tip) = block.tips.get(index).map(|tip| plain_line(tip)).filter(|tip| !tip.is_empty()) {
 				item.insert("title".into(), serde_json::json!(tip));
 			}
 			serde_json::Value::Object(item)
 		})
 		.collect();
-	props.set_prop("series", serde_json::Value::Array(series));
+	props.insert("series", serde_json::Value::Array(series));
 	props.set_f64("min", block.min);
 	props.set_f64("max", block.max);
 	let marks: Vec<serde_json::Value> = block
@@ -947,7 +950,7 @@ fn spark_chart_props(block: &JobWidgetSparkBlock, role: &str, size: &str, grow: 
 		})
 		.collect();
 	if !marks.is_empty() {
-		props.set_prop("marks", serde_json::Value::Array(marks));
+		props.insert("marks", serde_json::Value::Array(marks));
 	}
 	props.set_str("token", tone_token(block.tone.as_deref().unwrap_or(DEFAULT_TONE)));
 	props.set_str("summary", format!("{} {}", plain_line(&block.label), plain_line(&block.last)));
@@ -1174,6 +1177,7 @@ pub fn describe_job_tile(tile: &JobTile) -> crate::native::node::NativeNode {
 	head_props.set_str("align", "center");
 	let head = row(head_children, head_props);
 
+	let lead = glance.is_none();
 	let figure = glance.map(|glance| {
 		let mut props = Props::new();
 		props.set_str("role", "omp.job.tile.figure");
@@ -1181,7 +1185,8 @@ pub fn describe_job_tile(tile: &JobTile) -> crate::native::node::NativeNode {
 		props.set_str("truncate", "end");
 		ntext(NodeText::Spans(figure_spans(&glance)), props)
 	});
-	let visual = view.and_then(|view| view.blocks.first()).and_then(tile_visual);
+	let visual = view.and_then(|view| tile_visual(view.blocks.first()));
+	let lead = lead && visual.is_none();
 	let mut children: Vec<crate::native::node::NativeNode> = vec![keyed(head, "head")];
 	if let Some(figure) = figure {
 		children.push(keyed(figure, "figure"));
@@ -1189,7 +1194,6 @@ pub fn describe_job_tile(tile: &JobTile) -> crate::native::node::NativeNode {
 	if let Some(visual) = visual {
 		children.push(keyed(visual, "visual"));
 	}
-	let lead = glance.is_none() && visual.is_none();
 	for note in tile_notes(tile, view, lead) {
 		children.push(note);
 	}
@@ -1221,11 +1225,21 @@ fn figure_spans(glance: &JobWidgetGlance) -> Vec<Span> {
 	let (value, unit) = match FIGURE_NUMBER_RE.captures(&glance.text) {
 		Some(captures) => (
 			captures.get(1).map(|m| m.as_str().to_string()).unwrap_or_else(|| glance.text.clone()),
-			captures.get(2).map(|m| m.as_str()).unwrap_or("").replacen('/', "/ ", 1),
+			captures
+				.get(2)
+				.map(|m| m.as_str())
+				.unwrap_or("")
+				.strip_prefix('/')
+				.map(|rest| format!("/ {}", rest.trim_start()))
+				.unwrap_or_else(|| {
+					captures
+						.get(2)
+						.map(|m| m.as_str().to_string())
+						.unwrap_or_default()
+				}),
 		),
 		None => (glance.text.clone(), String::new()),
 	};
-	let unit = if unit.starts_with("/ ") || unit == "/" { unit } else { unit };
 	let label = match glance.label.as_deref() {
 		Some(label) if !label.is_empty() && !unit.to_lowercase().contains(&label.to_lowercase()) => {
 			format!("{label} ")
@@ -1370,7 +1384,7 @@ fn tile_notes(tile: &JobTile, view: Option<&JobWidgetView>, lead: bool) -> Vec<c
 	if !stage.is_empty() || !failed.is_empty() {
 		let mut spans = Vec::new();
 		if !failed.is_empty() {
-			spans.push(nspan(failed, Some("error")));
+			spans.push(nspan(failed.clone(), Some("error")));
 		}
 		if !failed.is_empty() && !stage.is_empty() {
 			spans.push(nspan(" · ", Some("dim")));
@@ -1556,5 +1570,143 @@ mod tests {
 			view: sample_view(),
 		};
 		assert_eq!(latest_job_widget(&[a, b]).unwrap().id, "b");
+	}
+
+	fn sample_tile(view: Option<JobWidgetView>) -> JobTile {
+		JobTile {
+			id: "job-1".into(),
+			r#type: JobTileType::Bash,
+			status: JobTileStatus::Running,
+			label: "make test".into(),
+			duration_ms: Some(12_000.0),
+			live: true,
+			widget: view,
+			completion_percent: Some(42.4),
+			stage: None,
+			exit_code: None,
+		}
+	}
+
+	#[test]
+	fn tile_title_prefers_task_id_then_widget_title_then_label() {
+		let task = JobTile {
+			id: "agent-1".into(),
+			r#type: JobTileType::Task,
+			widget: Some(sample_view()),
+			..sample_tile(None)
+		};
+		assert_eq!(tile_title(&task), "agent-1");
+
+		let bash = sample_tile(Some(sample_view()));
+		assert_eq!(tile_title(&bash), "loadtest");
+
+		let mut no_title = sample_tile(None);
+		no_title.label = "cmd --flag\nsecond line".into();
+		assert_eq!(tile_title(&no_title), "cmd --flag");
+	}
+
+	#[test]
+	fn figure_spans_split_number_unit_and_drop_redundant_label() {
+		let glance = JobWidgetGlance {
+			text: "1.10k tok/s".into(),
+			label: Some("tok/s".into()),
+			trend: Some(JobWidgetTrend { text: "▲ 15%".into(), tone: TrendTone::Success }),
+		};
+		let spans = figure_spans(&glance);
+		assert_eq!(spans[0].t, "1.10k");
+		assert_eq!(spans[1].t, " tok/s");
+		assert_eq!(spans[2].t, " ▲ 15%");
+		assert!(spans.len() == 3, "unit restating the label drops the label span: {spans:?}");
+
+		let glance = JobWidgetGlance {
+			text: "7/9 trials".into(),
+			label: Some("trials".into()),
+			trend: None,
+		};
+		let spans = figure_spans(&glance);
+		assert_eq!(spans[0].t, "7");
+		assert_eq!(spans[1].t, " / 9 trials");
+	}
+
+	#[test]
+	fn render_tile_lines_fit_width_and_paint_blocks() {
+		let view = JobWidgetView {
+			title: "loadtest".into(),
+			headline: Some(JobWidgetHeadline {
+				text: "186 tok/s".into(),
+				label: Some("decode".into()),
+				trend: Some(JobWidgetTrend { text: "▲ 15%".into(), tone: TrendTone::Success }),
+			}),
+			stage: Some("warming".into()),
+			blocks: vec![
+				JobWidgetBlock::Spark(JobWidgetSparkBlock {
+					label: "rate".into(),
+					values: vec![0.0, 2.0, 3.0, 4.0],
+					min: 0.0,
+					max: 4.0,
+					marks: vec![JobWidgetMark { value: 3.0, label: "target".into(), tone: Some("muted".into()) }],
+					last: "4".into(),
+					tips: vec![],
+					tone: Some("accent".into()),
+				}),
+				JobWidgetBlock::Meter(JobWidgetMeterBlock {
+					label: "progress".into(),
+					value: 0.5,
+					text: "140/190".into(),
+					tone: Some("success".into()),
+				}),
+			],
+			state: JobWidgetState::Live,
+			updated_at: 1,
+		};
+		let tile = sample_tile(Some(view));
+		let theme = crate::theme::default_theme();
+		let options = JobTileLineOptions { lead: "● ".into(), meta: "12s".into(), full: true };
+		let lines = render_job_tile_lines(&tile, 40, &theme, &options);
+		assert!(!lines.is_empty());
+		assert!(lines[0].contains("loadtest"), "{lines:?}");
+		assert!(lines[0].contains("12s"), "{lines:?}");
+		assert!(lines.iter().all(|line| visible_width(line) <= 40), "{lines:?}");
+		assert!(lines.iter().any(|line| line.contains('█')), "{lines:?}");
+		assert!(lines.iter().any(|line| line.contains('▁')), "{lines:?}");
+		assert!(render_job_tile_lines(&tile, 0, &theme, &options).is_empty());
+	}
+
+	#[test]
+	fn describe_tile_hovercard_and_grid_fallback() {
+		let view = JobWidgetView {
+			title: "loadtest".into(),
+			headline: None,
+			stage: Some("stage".into()),
+			blocks: vec![JobWidgetBlock::Grid(JobWidgetGridBlock {
+				label: "cells".into(),
+				items: (0..8)
+					.map(|index| JobWidgetGridItem {
+						label: format!("cell-{index}"),
+						text: format!("value-{index}"),
+						tone: "success".into(),
+					})
+					.collect(),
+			})],
+			state: JobWidgetState::Live,
+			updated_at: 1,
+		};
+		let tile = sample_tile(Some(view));
+		let described = describe_job_tile(&tile);
+		assert_eq!(described.props.get_str("role"), Some("omp.job.tile"));
+		let tiles = describe_job_tiles(&[tile.clone()]);
+		assert_eq!(tiles.props.get_str("role"), Some("omp.job.tiles"));
+
+		let entries: Vec<JobWidgetEntry> = (0..5)
+			.map(|index| JobWidgetEntry {
+				id: format!("job-{index}"),
+				r#type: "bash".into(),
+				view: sample_view(),
+			})
+			.collect();
+		let hovercard = describe_job_widgets_hovercard(&entries);
+		assert_eq!(hovercard.props.get_str("role"), Some("omp.jobs.hovercard"));
+		let serialized = crate::native::describe::prop_node(&hovercard).to_string();
+		assert!(serialized.contains("+1 more job"), "{serialized}");
 	}
 }

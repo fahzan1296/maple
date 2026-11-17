@@ -51,8 +51,8 @@ impl CursorVisibilityTracker {
 	pub fn track_write(&mut self, data: &str) {
 		let mut idx = data.rfind("\x1b[?25");
 		while let Some(found) = idx {
-			let final = data.as_bytes().get(found + 5).copied();
-			if final == Some(b'h') || final == Some(b'l') {
+			let terminator = data.as_bytes().get(found + 5).copied();
+			if terminator == Some(b'h') || terminator == Some(b'l') {
 				break;
 			}
 			idx = if found == 0 {
@@ -77,5 +77,3 @@ impl CursorVisibilityTracker {
 		}
 	}
 }
-
-/// The escape pair for cursor visibility.

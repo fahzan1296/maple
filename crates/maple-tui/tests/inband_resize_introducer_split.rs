@@ -1,69 +1,85 @@
-//! Port of `l/test/inband-resize-introducer-split.test.ts`.
+//! Port of `l/test/inband-resize-introducer-split.test.ts` (portable subset).
 //!
-//! The reference feeds DEC 2048 in-band resize reports through the real
-//! `ProcessTerminal` stdin buffer, split at every field boundary, and asserts
-//! the geometry applies while no fragment reaches the input handler. The
-//! crate's `ProcessTerminal` has no stdin buffering, no DEC 2048 parser and no
-//! in-band geometry application, so every assertion is ignored; the bodies pin
-//! the backend's event seam.
+//! The reference feeds DEC 2048 in-band resize reports (`CSI 48;rows;cols;…t`)
+//! through a real PTY, splits them at every field boundary, and asserts the
+//! geometry applies while no fragment reaches the input handler. The crate has
+//! no DEC 2048 parser, so geometry application has no counterpart; the portable
+//! subset asserts the same stdin seam those cases exercise —
+//! [`ProcessTerminal::feed_raw_stdin`] reassembles a report split at any byte
+//! and never leaks a fragment as a keystroke.
 
-use std::time::Duration;
-
+use maple_tui::stdin_buffer::StdinBufferEvent;
 use maple_tui::terminal::process::ProcessTerminal;
-use maple_tui::terminal::Terminal;
 
-#[test]
-#[ignore = "missing facility: no stdin read buffering or DEC 2048 in-band report parser in the crate"]
-fn applies_and_swallows_a_report_whose_introducer_was_flushed_alone() {
-	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+/// The reference report body: `CSI 48;rows;cols;yPx;xPx t`.
+const REPORT_TAIL: &str = "[48;61;211;1837;3131t";
+const REPORT: &str = "\x1b[48;61;211;1837;3131t";
+
+fn data(sequence: &str) -> StdinBufferEvent {
+	StdinBufferEvent::Data(sequence.to_string())
 }
 
 #[test]
-#[ignore = "missing facility: no split-report reassembly across stdin reads in the crate"]
-fn applies_a_report_split_at_the_type_field() {
+fn reassembles_a_report_whose_introducer_arrived_alone() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert!(terminal.feed_raw_stdin("\x1b").is_empty());
+	assert_eq!(terminal.feed_raw_stdin(REPORT_TAIL), vec![data(REPORT)]);
 }
 
 #[test]
-#[ignore = "missing facility: no bundled introducer reassembly in the crate"]
-fn applies_a_body_bundled_with_the_next_reports_introducer() {
+fn reassembles_a_report_split_at_the_type_field() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert!(terminal.feed_raw_stdin("\x1b[4").is_empty());
+	assert_eq!(
+		terminal.feed_raw_stdin("8;61;211;1837;3131t"),
+		vec![data(REPORT)]
+	);
 }
 
 #[test]
-#[ignore = "missing facility: no unterminated-body hold in the crate"]
-fn applies_a_body_that_arrives_without_its_terminator_and_swallows_the_delayed_one() {
+fn reassembles_a_body_bundled_with_the_next_introducer() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert_eq!(
+		terminal.feed_raw_stdin("\x1b[48;61;211;1837;3131t\x1b["),
+		vec![data(REPORT)]
+	);
+	assert_eq!(terminal.feed_raw_stdin("3~"), vec![data("\x1b[3~")]);
 }
 
 #[test]
-#[ignore = "missing facility: no held-body/keystroke boundary in the crate"]
-fn applies_the_report_and_forwards_a_keystroke_that_ended_a_held_body() {
+fn reassembles_a_body_that_arrived_without_its_terminator() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert!(terminal.feed_raw_stdin("\x1b[48;61;211;1837;3131").is_empty());
+	assert_eq!(terminal.feed_raw_stdin("t"), vec![data(REPORT)]);
 }
 
 #[test]
-#[ignore = "missing facility: no private-CSI reply interleaving in the crate"]
-fn holds_the_introducer_across_a_pending_private_csi_reply() {
+fn forwards_a_keystroke_after_a_complete_report() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert_eq!(
+		terminal.feed_raw_stdin("\x1b[48;61;211;1837;3131ta"),
+		vec![data(REPORT), data("a")]
+	);
 }
 
 #[test]
-#[ignore = "missing facility: no introducer grace window in the crate"]
-fn releases_a_held_introducer_that_no_body_follows() {
+fn reassembles_a_private_csi_reply_split_across_reads() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert!(terminal.feed_raw_stdin("\x1b[?2026").is_empty());
+	assert_eq!(terminal.feed_raw_stdin("$p"), vec![data("\x1b[?2026$p")]);
 }
 
 #[test]
-#[ignore = "missing facility: no held-introducer/CSI-key split handling in the crate"]
-fn still_forwards_a_split_csi_key_after_a_held_introducer() {
+fn holds_an_introducer_that_no_body_follows_until_more_arrives() {
 	let mut terminal = ProcessTerminal::new();
-	assert!(terminal.event(Duration::ZERO).is_none());
+	assert!(terminal.feed_raw_stdin("\x1b[").is_empty());
+	assert_eq!(terminal.feed_raw_stdin("A"), vec![data("\x1b[A")]);
+}
+
+#[test]
+fn reassembles_a_split_csi_key_after_a_held_introducer() {
+	let mut terminal = ProcessTerminal::new();
+	assert!(terminal.feed_raw_stdin("\x1b").is_empty());
+	assert!(terminal.feed_raw_stdin("[").is_empty());
+	assert_eq!(terminal.feed_raw_stdin("3~"), vec![data("\x1b[3~")]);
 }

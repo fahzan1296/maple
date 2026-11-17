@@ -119,7 +119,7 @@ fn wraps_very_long_filepaths_without_overflowing() {
 	let width = 65;
 	let files = vec![file(&path)];
 	let body = vec!["body row"; 41];
-	let mut out = canvas(width, &body.iter().map(String::as_str).collect::<Vec<_>>());
+	let mut out = canvas(width, &body);
 	reveal(&mut out, &files, 0, FocusRegion::Files, width, 40, &theme());
 
 	let path_column = 4;
@@ -141,7 +141,7 @@ fn floats_bottom_selection_upward_without_changing_rows() {
 	paths[79] = path.clone();
 	let files: Vec<ReviewDiffFile> = paths.iter().map(|p| file(p)).collect();
 	let body = vec!["body row"; 41];
-	let mut out = canvas(width, &body.iter().map(String::as_str).collect::<Vec<_>>());
+	let mut out = canvas(width, &body);
 	let before = out.len();
 	reveal(&mut out, &files, files.len() - 1, FocusRegion::Files, width, 40, &theme());
 
@@ -171,7 +171,7 @@ fn marks_filepath_longer_than_frame_while_preserving_tail() {
 	let path = format!("src/{}BOTTOM_FILENAME_TAIL.ts", "long-directory/".repeat(500));
 	let files = vec![file(&path)];
 	let body = vec!["body row"; 41];
-	let mut out = canvas(width, &body.iter().map(String::as_str).collect::<Vec<_>>());
+	let mut out = canvas(width, &body);
 	reveal(&mut out, &files, 0, FocusRegion::Files, width, 40, &theme());
 	let plain = plain(&out);
 	assert!(plain.iter().any(|line| line[4..width - 1].starts_with('…')));

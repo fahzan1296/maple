@@ -7,7 +7,7 @@
 //! never clear scrollback.
 
 use crate::terminal::Terminal;
-use crate::text_shape::{truncate_to_width, Ellipsis};
+use crate::text_shape::{truncate_to_width, visible_width, Ellipsis};
 
 const PAINT_BEGIN_SYNC: &str = "\x1b[?25l\x1b[?2026h\x1b[?7l";
 const PAINT_END_SYNC: &str = "\x1b[?7h\x1b[?2026l";

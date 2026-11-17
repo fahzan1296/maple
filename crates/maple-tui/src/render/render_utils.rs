@@ -1421,6 +1421,7 @@ const PREVIEW_WINDOW_FALLBACK_ROWS: i64 = 30;
 /// Reference: `l/src/render/render-utils.ts::previewWindowRows`.
 pub fn preview_window_rows() -> usize {
     let rows = crate::env_lookup("LINES")
+        .and_then(|value| value.into_string().ok())
         .and_then(|value| value.parse::<i64>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(PREVIEW_WINDOW_FALLBACK_ROWS);
@@ -1523,7 +1524,7 @@ pub fn format_feed_model_badge(
     }
     let model = truncate_middle_to_width(&clean, model_width);
     format!(
-        "{}{}{}",
+        "{}{}",
         paint(theme, ThemeColor::Accent, &prefix),
         paint(theme, ThemeColor::Dim, &format!("{model}{suffix}"))
     )
@@ -2681,7 +2682,7 @@ where
     F: FnOnce() -> String,
 {
     let theme_key = std::ptr::from_ref(theme) as usize;
-    if let Some(cache) = cache {
+    if let Some(cache) = cache.as_deref() {
         if cache.theme == Some(theme_key)
             && cache.expanded == expanded
             && cache.salt == salt

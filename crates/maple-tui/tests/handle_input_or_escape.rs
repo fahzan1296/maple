@@ -18,6 +18,9 @@ impl Component for Capture {
 	fn handle_input(&mut self, key: &Key) {
 		self.keys.push(key.clone());
 	}
+	fn render(&mut self, _width: u16) -> Vec<String> {
+		Vec::new()
+	}
 }
 
 fn run(key: &Key) -> (bool, Vec<Key>) {

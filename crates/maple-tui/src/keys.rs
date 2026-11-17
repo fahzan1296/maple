@@ -3,6 +3,9 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+/// Normalized key identifier (port of the TS `KeyId` string union).
+pub type KeyId = String;
+
 /// A normalized key press.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Key {

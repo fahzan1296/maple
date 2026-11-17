@@ -1,10 +1,13 @@
 # Third-Party Notices
 
-`maple` is a **clean-room re-implementation**. No source code is copied or
-vendored from the projects below. Their source is read as the specification:
-behaviour and file/wire formats are reproduced 1:1 in freshly written Rust. All
-code in this repository is written by maple contributors and licensed under MIT
-(see `LICENSE`).
+`maple` is a **clean-room re-implementation** of the reference projects below.
+No source code is copied or vendored from them: their source is read as the
+specification, and behaviour and file/wire formats are reproduced 1:1 in
+freshly written Rust. All code in this repository is written by maple
+contributors and licensed under MIT (see `LICENSE`). The clean-room rule
+governs the reference source only; maple additionally links third-party
+crates.io crates as build dependencies, listed under
+[`Runtime dependencies`](#runtime-dependencies) with their licenses.
 
 ## References (specification only)
 
@@ -21,5 +24,136 @@ are not copyrighted expression; no pi-messenger code is included.
 
 ## Runtime dependencies
 
-Runtime dependencies introduced by maple will be listed here with name,
-version, license, and source URL before the first release (SOP-DOC).
+Crates resolved in `Cargo.lock` for the `maple` / `maple-tui` binaries, with
+the version from `Cargo.lock` and the license declared by each crate's
+`Cargo.toml`. Direct dependencies of `crates/maple-tui` and of the workspace
+root crate are included, together with the transitive dependencies they pull
+in (including target-specific crates resolved in the lockfile).
+
+| Crate | Version | License |
+|---|---|---|
+| [aho-corasick](https://github.com/BurntSushi/aho-corasick) | 1.1.5 | Unlicense OR MIT |
+| [anstream](https://github.com/rust-cli/anstyle) | 1.0.0 | MIT OR Apache-2.0 |
+| [anstyle](https://github.com/rust-cli/anstyle) | 1.0.14 | MIT OR Apache-2.0 |
+| [anstyle-parse](https://github.com/rust-cli/anstyle) | 1.0.0 | MIT OR Apache-2.0 |
+| [anstyle-query](https://github.com/rust-cli/anstyle) | 1.1.5 | MIT OR Apache-2.0 |
+| [anstyle-wincon](https://github.com/rust-cli/anstyle) | 3.0.11 | MIT OR Apache-2.0 |
+| [anyhow](https://github.com/dtolnay/anyhow) | 1.0.104 | MIT OR Apache-2.0 |
+| [base64](https://github.com/marshallpierce/rust-base64) | 0.22.1 | MIT OR Apache-2.0 |
+| [bitflags](https://github.com/bitflags/bitflags) | 2.13.2 | MIT OR Apache-2.0 |
+| [block-buffer](https://github.com/RustCrypto/utils) | 0.10.4 | MIT OR Apache-2.0 |
+| [bumpalo](https://github.com/fitzgen/bumpalo) | 3.20.4 | MIT OR Apache-2.0 |
+| [cfg-if](https://github.com/rust-lang/cfg-if) | 1.0.5 | MIT OR Apache-2.0 |
+| [clap](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
+| [clap_builder](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
+| [clap_derive](https://github.com/clap-rs/clap) | 4.6.7 | MIT OR Apache-2.0 |
+| [clap_lex](https://github.com/clap-rs/clap) | 1.1.1 | MIT OR Apache-2.0 |
+| [colorchoice](https://github.com/rust-cli/anstyle) | 1.0.5 | MIT OR Apache-2.0 |
+| [cpufeatures](https://github.com/RustCrypto/utils) | 0.2.17 | MIT OR Apache-2.0 |
+| [crossterm](https://github.com/crossterm-rs/crossterm) | 0.28.1 | MIT |
+| [crossterm_winapi](https://github.com/crossterm-rs/crossterm-winapi) | 0.9.1 | MIT |
+| [crypto-common](https://github.com/RustCrypto/traits) | 0.1.7 | MIT OR Apache-2.0 |
+| [deranged](https://github.com/jhpratt/deranged) | 0.5.5 | MIT OR Apache-2.0 |
+| [digest](https://github.com/RustCrypto/traits) | 0.10.7 | MIT OR Apache-2.0 |
+| [equivalent](https://github.com/indexmap-rs/equivalent) | 1.0.3 | Apache-2.0 OR MIT |
+| [errno](https://github.com/lambda-fairy/rust-errno) | 0.3.15 | MIT OR Apache-2.0 |
+| [foldhash](https://github.com/orlp/foldhash) | 0.1.5 | Zlib |
+| [futures-core](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
+| [futures-task](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
+| [futures-util](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
+| [generic-array](https://github.com/fizyk20/generic-array) | 0.14.7 | MIT |
+| [getrandom](https://github.com/rust-random/getrandom) | 0.4.1 | MIT OR Apache-2.0 |
+| [hashbrown](https://github.com/rust-lang/hashbrown) | 0.15.5 | MIT OR Apache-2.0 |
+| [hashbrown](https://github.com/rust-lang/hashbrown) | 0.17.1 | MIT OR Apache-2.0 |
+| [heck](https://github.com/withoutboats/heck) | 0.5.0 | MIT OR Apache-2.0 |
+| [id-arena](https://crates.io/crates/id-arena) | 2.3.0 | License not verified (crate not yet vendored — verify on first build) |
+| [indexmap](https://github.com/indexmap-rs/indexmap) | 2.14.2 | Apache-2.0 OR MIT |
+| [is_terminal_polyfill](https://github.com/polyfill-rs/is_terminal_polyfill) | 1.70.2 | MIT OR Apache-2.0 |
+| [itoa](https://github.com/dtolnay/itoa) | 1.0.19 | MIT OR Apache-2.0 |
+| [js-sys](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys) | 0.3.107 | MIT OR Apache-2.0 |
+| [leb128fmt](https://crates.io/crates/leb128fmt) | 0.1.0 | License not verified (crate not yet vendored — verify on first build) |
+| [libc](https://github.com/rust-lang/libc) | 0.2.191 | MIT OR Apache-2.0 |
+| [linux-raw-sys](https://github.com/sunfishcode/linux-raw-sys) | 0.4.15 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| [lock_api](https://github.com/Amanieu/parking_lot) | 0.4.14 | MIT OR Apache-2.0 |
+| [log](https://github.com/rust-lang/log) | 0.4.35 | MIT OR Apache-2.0 |
+| [memchr](https://github.com/BurntSushi/memchr) | 2.8.3 | Unlicense OR MIT |
+| [mio](https://github.com/tokio-rs/mio) | 1.2.5 | MIT |
+| [num-conv](https://github.com/jhpratt/num-conv) | 0.2.0 | MIT OR Apache-2.0 |
+| [once_cell_polyfill](https://github.com/polyfill-rs/once_cell_polyfill) | 1.70.2 | MIT OR Apache-2.0 |
+| [parking_lot](https://github.com/Amanieu/parking_lot) | 0.12.5 | MIT OR Apache-2.0 |
+| [parking_lot_core](https://github.com/Amanieu/parking_lot) | 0.9.12 | MIT OR Apache-2.0 |
+| [pin-project-lite](https://github.com/taiki-e/pin-project-lite) | 0.2.17 | Apache-2.0 OR MIT |
+| [powerfmt](https://github.com/jhpratt/powerfmt) | 0.2.0 | MIT OR Apache-2.0 |
+| [prettyplease](https://crates.io/crates/prettyplease) | 0.2.37 | License not verified (crate not yet vendored — verify on first build) |
+| [proc-macro2](https://github.com/dtolnay/proc-macro2) | 1.0.107 | MIT OR Apache-2.0 |
+| [quote](https://github.com/dtolnay/quote) | 1.0.47 | MIT OR Apache-2.0 |
+| [r-efi](https://github.com/r-efi/r-efi) | 5.3.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
+| [redox_syscall](https://gitlab.redox-os.org/redox-os/syscall) | 0.5.18 | MIT |
+| [regex](https://github.com/rust-lang/regex) | 1.12.2 | MIT OR Apache-2.0 |
+| [regex-automata](https://github.com/rust-lang/regex) | 0.4.18 | MIT OR Apache-2.0 |
+| [regex-syntax](https://github.com/rust-lang/regex) | 0.8.11 | MIT OR Apache-2.0 |
+| [rustix](https://github.com/bytecodealliance/rustix) | 0.38.44 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| [rustversion](https://github.com/dtolnay/rustversion) | 1.0.23 | MIT OR Apache-2.0 |
+| [scopeguard](https://github.com/bluss/scopeguard) | 1.2.0 | MIT OR Apache-2.0 |
+| [semver](https://github.com/dtolnay/semver) | 1.0.27 | MIT OR Apache-2.0 |
+| [serde](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
+| [serde_core](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
+| [serde_derive](https://github.com/serde-rs/serde) | 1.0.229 | MIT OR Apache-2.0 |
+| [serde_json](https://github.com/serde-rs/json) | 1.0.154 | MIT OR Apache-2.0 |
+| [sha2](https://github.com/RustCrypto/hashes) | 0.10.9 | MIT OR Apache-2.0 |
+| [signal-hook](https://github.com/vorner/signal-hook) | 0.3.18 | Apache-2.0/MIT |
+| [signal-hook-mio](https://github.com/vorner/signal-hook) | 0.2.5 | MIT OR Apache-2.0 |
+| [signal-hook-registry](https://github.com/vorner/signal-hook) | 1.4.8 | MIT OR Apache-2.0 |
+| [slab](https://github.com/tokio-rs/slab) | 0.4.12 | MIT |
+| [smallvec](https://github.com/servo/rust-smallvec) | 1.16.5 | MIT OR Apache-2.0 |
+| [strsim](https://github.com/rapidfuzz/strsim-rs) | 0.11.1 | MIT |
+| [syn](https://github.com/dtolnay/syn) | 2.0.119 | MIT OR Apache-2.0 |
+| [syn](https://github.com/dtolnay/syn) | 3.0.10 | MIT OR Apache-2.0 |
+| [time](https://github.com/time-rs/time) | 0.3.47 | MIT OR Apache-2.0 |
+| [time-core](https://github.com/time-rs/time) | 0.1.8 | MIT OR Apache-2.0 |
+| [time-macros](https://github.com/time-rs/time) | 0.2.27 | MIT OR Apache-2.0 |
+| [typenum](https://github.com/paholg/typenum) | 1.20.0 | MIT OR Apache-2.0 |
+| [unicode-ident](https://github.com/dtolnay/unicode-ident) | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| [unicode-segmentation](https://github.com/unicode-rs/unicode-segmentation) | 1.13.3 | MIT OR Apache-2.0 |
+| [unicode-width](https://github.com/unicode-rs/unicode-width) | 0.2.0 | MIT OR Apache-2.0 |
+| [unicode-xid](https://crates.io/crates/unicode-xid) | 0.2.6 | License not verified (crate not yet vendored — verify on first build) |
+| [utf8parse](https://github.com/alacritty/vte) | 0.2.2 | Apache-2.0 OR MIT |
+| [uuid](https://github.com/uuid-rs/uuid) | 1.21.0 | Apache-2.0 OR MIT |
+| [version_check](https://github.com/SergioBenitez/version_check) | 0.9.5 | MIT/Apache-2.0 |
+| [wasi](https://github.com/bytecodealliance/wasi) | 0.11.1+wasi-snapshot-preview1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| [wasip2](https://github.com/bytecodealliance/wasi-rs) | 1.0.4+wasi-0.2.12 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| [wasip3](https://crates.io/crates/wasip3) | 0.4.0+wasi-0.3.0-rc-2026-01-06 | License not verified (crate not yet vendored — verify on first build) |
+| [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen) | 0.2.130 | MIT OR Apache-2.0 |
+| [wasm-bindgen-macro](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro) | 0.2.130 | MIT OR Apache-2.0 |
+| [wasm-bindgen-macro-support](https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support) | 0.2.130 | MIT OR Apache-2.0 |
+| [wasm-bindgen-shared](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared) | 0.2.130 | MIT OR Apache-2.0 |
+| [wasm-encoder](https://crates.io/crates/wasm-encoder) | 0.244.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wasm-metadata](https://crates.io/crates/wasm-metadata) | 0.244.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wasmparser](https://crates.io/crates/wasmparser) | 0.244.0 | License not verified (crate not yet vendored — verify on first build) |
+| [winapi](https://github.com/retep998/winapi-rs) | 0.3.9 | MIT/Apache-2.0 |
+| [winapi-i686-pc-windows-gnu](https://github.com/retep998/winapi-rs) | 0.4.0 | MIT/Apache-2.0 |
+| [winapi-x86_64-pc-windows-gnu](https://github.com/retep998/winapi-rs) | 0.4.0 | MIT/Apache-2.0 |
+| [windows-link](https://github.com/microsoft/windows-rs) | 0.2.1 | MIT OR Apache-2.0 |
+| [windows-sys](https://github.com/microsoft/windows-rs) | 0.52.0 | MIT OR Apache-2.0 |
+| [windows-sys](https://github.com/microsoft/windows-rs) | 0.61.2 | MIT OR Apache-2.0 |
+| [windows-targets](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_aarch64_gnullvm](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_aarch64_msvc](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_i686_gnu](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_i686_gnullvm](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_i686_msvc](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_x86_64_gnu](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_x86_64_gnullvm](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [windows_x86_64_msvc](https://github.com/microsoft/windows-rs) | 0.52.6 | MIT OR Apache-2.0 |
+| [wit-bindgen](https://crates.io/crates/wit-bindgen) | 0.51.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen) | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| [wit-bindgen-core](https://crates.io/crates/wit-bindgen-core) | 0.51.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wit-bindgen-rust](https://crates.io/crates/wit-bindgen-rust) | 0.51.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wit-bindgen-rust-macro](https://crates.io/crates/wit-bindgen-rust-macro) | 0.51.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wit-component](https://crates.io/crates/wit-component) | 0.244.0 | License not verified (crate not yet vendored — verify on first build) |
+| [wit-parser](https://crates.io/crates/wit-parser) | 0.244.0 | License not verified (crate not yet vendored — verify on first build) |
+| [zmij](https://github.com/dtolnay/zmij) | 1.0.23 | MIT |
+
+Rows marked `License not verified` are crates not present in the local cargo
+registry cache; the license is unconfirmed and must be checked against the
+crate's own `Cargo.toml` on first build.

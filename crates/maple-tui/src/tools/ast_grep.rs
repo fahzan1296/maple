@@ -8,6 +8,8 @@
 //!   highlighter + tree UI components). Structural summaries/native nodes provided.
 //! - Themed string helpers take `&Theme`; native describe uses token-styled
 //!   spans/nodes for host theme-aware rendering.
+use crate::overlays::extensions::display_text::sanitize_display_text;
+
 /// Display metadata returned by ast-grep.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AstGrepToolDetails {
@@ -153,9 +155,9 @@ pub fn render_result(details: Option<&AstGrepToolDetails>, output: &str, is_erro
 	if limit_reached {
 		lines.push("limit reached".into());
 	}
-	if !output.trim().is_empty() {
-		lines.push(output.trim_end().to_string());
-	}
+    if !output.trim().is_empty() {
+        lines.push(sanitize_display_text(output.trim_end()));
+    }
 	lines
 }
 
@@ -379,7 +381,25 @@ pub fn describe_call(args: Option<&AstGrepRenderArgs>) -> crate::tools::native_v
 	}
 }
 
+/// Resolve a grouped-output header path to a file link, keeping the original
+/// path (terminal controls included) out of the visible label.
+fn ast_grep_file_href(details: Option<&AstGrepToolDetails>, raw: &str) -> Option<String> {
+    let details = details?;
+    let base = details.cwd.as_deref().or(details.search_path.as_deref())?;
+    let path = if std::path::Path::new(raw).is_absolute() {
+        raw.to_string()
+    } else {
+        format!("{}/{}", base.trim_end_matches('/'), raw)
+    };
+    crate::render::hyperlink::try_file_uri(
+        &path,
+        crate::render::hyperlink::FilePosition::default(),
+        false,
+    )
+}
+
 /// Native describe of an AST grep result.
+
 pub fn describe_result(
 	details: Option<&AstGrepToolDetails>,
 	output: &str,
@@ -408,12 +428,21 @@ pub fn describe_result(
 			..NativeToolView::default()
 		};
 	}
-	let mut children = Vec::new();
-	if !output.trim().is_empty() {
-		let mut p = Props::new();
-		p.set_str("wrap", "word");
-		children.push(ntext(NodeText::Plain(output.trim_end().to_string()), p));
-	}
+    let mut children = Vec::new();
+    if !output.trim().is_empty() {
+        for line in output.trim_end().lines() {
+            let mut p = Props::new();
+            p.set_str("wrap", "word");
+            if let Some(depth) = header_depth(line) {
+                let raw = line[depth..].trim().to_string();
+                let mut span = Span::styled(sanitize_display_text(&raw), "strong");
+                span.href = ast_grep_file_href(details, &raw);
+                children.push(ntext(NodeText::Spans(vec![span]), p));
+            } else {
+                children.push(ntext(NodeText::Plain(sanitize_display_text(line)), p));
+            }
+        }
+    }
 	let mut stats = Vec::new();
 	if parse_error_count > 0 {
 		stats.push(format_parse_errors_count_label(

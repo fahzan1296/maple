@@ -2,9 +2,11 @@
 //! Reference: `l/src/terminal.ts`.
 
 pub mod process;
+pub mod kitty_keyboard;
 pub mod cursor_visibility;
 pub mod program_status;
 pub mod virt;
+pub use cursor_visibility::CursorVisibilityTracker;
 
 use crate::keys::Key;
 use crate::mouse::MouseEvent;
