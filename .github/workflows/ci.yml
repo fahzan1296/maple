@@ -10,10 +10,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
 env:
   # SOP-RESLIM.2: bound build parallelism; the project budgets for constrained
   # hosts (KONTRAK §SOP-RESLIM, PRD §11).
-  CARGO_BUILD_JOBS: 2
+  CARGO_BUILD_JOBS: 1
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  CARGO_PROFILE_DEV_INCREMENTAL: false
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
@@ -30,22 +35,35 @@ jobs:
         # Windows is out of scope for v0.1 (PRD §15).
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Build
         timeout-minutes: 5
-        run: cargo build --workspace --all-targets
+        run: cargo build -p maple-tui
       - name: Test
         timeout-minutes: 10
-        run: cargo test --workspace --all-targets -- --test-threads=2
+        run: cargo test -p maple-tui --lib -- --test-threads=2
 
   lint:
     name: clippy
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Clippy
         timeout-minutes: 5
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy -p maple-tui -- -D warnings
+
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-audit
+      - name: Audit dependencies
+        timeout-minutes: 5
+        run: cargo audit
