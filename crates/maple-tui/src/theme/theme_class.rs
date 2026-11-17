@@ -8,8 +8,9 @@ use std::collections::HashMap;
 
 use crate::theme::color::{
 	bg_ansi, color_luma, color_to_ansi, fg_ansi, is_light_luma, relative_luminance, resolve_to_hex,
-	ColorMode, ColorValue, BG_RESET, FG_RESET,
+	ColorValue, BG_RESET, FG_RESET,
 };
+pub use crate::theme::color::ColorMode;
 use crate::theme::schema::{
 	is_valid_theme_bg, is_valid_theme_color, AnsiColor, ColorMap, OPTIONAL_THEME_COLOR_KEYS,
 };

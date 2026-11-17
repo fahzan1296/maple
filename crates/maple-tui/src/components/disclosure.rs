@@ -3,10 +3,39 @@
 
 use crate::component::Component;
 use crate::keys::{is_enter, Key};
-use crate::mouse::{MouseButtonKind, MouseKind, MouseEvent};
+use crate::mouse::{MouseButtonKind, MouseEvent, MouseKind};
 use crate::style::Style;
 use crate::text_shape::{pad_to_width, truncate_to_width, Ellipsis};
 
+/// A component slot; factory slots are constructed only when their branch is first rendered.
+///
+/// Port of `l/src/components/disclosure.ts::DisclosureSlot`.
+/// `Box<dyn Component>` corresponds to a materialized component; the factory variant defers construction.
+pub enum DisclosureSlot {
+	Component(Box<dyn Component>),
+	Factory(Box<dyn FnOnce() -> Box<dyn Component> + Send>),
+}
+
+/// Options for a controlled, compositional disclosure.
+///
+/// Port of `l/src/components/disclosure.ts::DisclosureOptions`.
+/// Fields mirror the TS interface; slot/component-typed fields use Rust-owned component values.
+pub struct DisclosureOptions {
+	/// Content rendered in both collapsed and expanded states.
+	pub summary: Option<DisclosureSlot>,
+	/// Optional collapsed-only preview.
+	pub collapsed_body: Option<DisclosureSlot>,
+	/// Expanded-only content. A factory keeps expensive children lazy.
+	pub body: Box<dyn FnOnce() -> Box<dyn Component> + Send>,
+	/// Initial controlled state. Subsequent changes go through `set_open`/toggle APIs.
+	pub expanded: Option<bool>,
+	/// Horizontal padding applied outside every rendered slot.
+	pub padding_x: Option<usize>,
+	/// Maximum physical rows retained from the collapsed-only preview, including its hint row.
+	pub max_collapsed_rows: Option<usize>,
+	/// Build the final row when `max_collapsed_rows` hides preview rows.
+	pub collapsed_hint: Option<Box<dyn Fn(usize, usize) -> String + Send + Sync>>,
+}
 
 /// Caret, color, and style policy for a [`Disclosure`].
 #[derive(Clone, Debug, PartialEq, Eq)]

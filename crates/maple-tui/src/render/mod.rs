@@ -1,17 +1,16 @@
 //! Render helpers: hyperlinks, output blocks, tool cards, tree/file lists,
+//! Reference: `l/src/render/index.ts`.
 //! width-aware text, code/output cells, link hints, extension links, status
 //! line.
 
-#[path = "code-cell.rs"]
 pub mod code_cell;
-#[path = "extension-links.rs"]
 pub mod extension_links;
+pub mod composite;
 pub mod file_list;
+pub mod hanging_wrap;
 pub mod hyperlink;
-#[path = "link-hints.rs"]
 pub mod link_hints;
 pub mod output_block;
-#[path = "output-pane.rs"]
 pub mod output_pane;
 pub mod render_utils;
 pub mod row_moves;

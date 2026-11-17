@@ -1,11 +1,7 @@
-//! Eval tool execution renderer and the bounded display formatter.
+//! Eval tool execution renderer.
 //!
-//! Ported from `l/src/tools/eval.ts` and `l/src/tools/eval-format/index.ts`.
-//! The TS formatters re-tokenize JavaScript/Python to reflow code; that tokenizer
-//! is not ported in this slice, so [`format_eval_code_for_display`] keeps the
-//! `%`-magic passthrough exact and otherwise applies a bounded, display-only
-//! normalization (dedent, trailing-space trim, blank-line collapse, line cap).
-//! The executed source is never modified.
+//! Ported from `l/src/tools/eval.ts`. Display formatting lives in
+//! [`crate::tools::eval_format`].
 
 use crate::component::Component;
 use crate::render::tool_card::{StatusLine, ToolCard, ToolCardPhase};
@@ -13,8 +9,9 @@ use crate::text_shape::visible_width;
 use crate::theme::Theme;
 use crate::tools::tool_execution::{ToolExecution, ToolExecutionState};
 
-/// Maximum source lines kept in a collapsed eval card.
-pub const EVAL_DISPLAY_MAX_LINES: usize = 24;
+/// Re-exported display formatter.
+pub use crate::tools::eval_format::format_eval_code_for_display;
+
 
 /// Languages the eval formatter distinguishes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,56 +32,6 @@ impl EvalLanguage {
     }
 }
 
-fn count_indent(line: &str) -> usize {
-    line.chars().take_while(|ch| *ch == ' ' || *ch == '\t').count()
-}
-
-/// Format an arbitrary eval-code prefix for display without changing the
-/// executed source. `%`-prefixed magic passes through untouched.
-pub fn format_eval_code_for_display(source: &str, language: EvalLanguage) -> String {
-    let _ = language;
-    if source.trim_start().starts_with('%') {
-        return source.to_string();
-    }
-    let normalized = source.replace("\r\n", "\n").replace('\r', "\n");
-    let lines: Vec<&str> = normalized.split('\n').collect();
-    let indent = lines
-        .iter()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| count_indent(line))
-        .min()
-        .unwrap_or(0);
-    let mut out: Vec<String> = Vec::new();
-    let mut blank_run = 0usize;
-    for line in &lines {
-        let dedented = if line.trim().is_empty() {
-            ""
-        } else if line.len() >= indent {
-            &line[indent..]
-        } else {
-            line.trim_start()
-        };
-        if dedented.trim().is_empty() {
-            blank_run += 1;
-            if blank_run > 1 || out.is_empty() {
-                continue;
-            }
-            out.push(String::new());
-            continue;
-        }
-        blank_run = 0;
-        out.push(dedented.trim_end().to_string());
-    }
-    while out.last().is_some_and(|line| line.is_empty()) {
-        out.pop();
-    }
-    if out.len() > EVAL_DISPLAY_MAX_LINES {
-        let hidden = out.len() - EVAL_DISPLAY_MAX_LINES;
-        out.truncate(EVAL_DISPLAY_MAX_LINES);
-        out.push(format!("… ({hidden} more lines)"));
-    }
-    out.join("\n")
-}
 
 /// An eval execution card: language-labelled code plus its output.
 pub struct EvalExecution {
@@ -175,6 +122,191 @@ impl Component for EvalExecution {
     }
 }
 
+/// One column of a table view.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EvalTableColumn {
+	/// Header text.
+	pub head: String,
+	/// Numeric columns render right-aligned.
+	pub numeric: bool,
+}
+
+/// A pretty rendering of something a cell printed, shown in place of its text.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EvalView {
+	/// A data frame as a table.
+	Table {
+		columns: Vec<EvalTableColumn>,
+		rows: Vec<Vec<String>>,
+	},
+	/// A structured value rendered as a tree.
+	Json(serde_json::Value),
+	/// An object's Markdown representation.
+	Markdown(String),
+}
+
+/// A view and the exact printed text it stands for: renderers locate `text` in
+/// the cell's output (entries in print order) and show the view there. An entry
+/// whose text is no longer in the output (truncated) is skipped.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EvalViewEntry {
+	/// Exact printed text the view replaces.
+	pub text: String,
+	/// The view shown in its place.
+	pub view: EvalView,
+}
+
+/// One ordered piece of a cell's output: printed text, or a view shown in place
+/// of the text it matched.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EvalOutputPart {
+	/// Printed text.
+	Text(String),
+	/// A view located at this position.
+	View(EvalView),
+}
+
+/// Split `output` around its views, in order: each view's `text` is searched
+/// from the end of the previous match, unmatched entries are skipped, and blank
+/// text between views is dropped (newlines bordering a view trimmed).
+pub fn split_eval_output(output: &str, views: Option<&[EvalViewEntry]>) -> Vec<EvalOutputPart> {
+	let mut parts = Vec::new();
+	let mut cursor = 0usize;
+	for entry in views.unwrap_or(&[]) {
+		if entry.text.is_empty() {
+			continue;
+		}
+		let Some(offset) = output[cursor..].find(&entry.text) else {
+			continue;
+		};
+		let at = cursor + offset;
+		push_eval_text(&mut parts, &output[cursor..at], cursor > 0, true);
+		parts.push(EvalOutputPart::View(entry.view.clone()));
+		cursor = at + entry.text.len();
+	}
+	push_eval_text(&mut parts, &output[cursor..], cursor > 0, cursor > 0);
+	parts
+}
+
+fn push_eval_text(parts: &mut Vec<EvalOutputPart>, chunk: &str, trim_start: bool, trim_end: bool) {
+	let mut text = chunk;
+	if trim_start {
+		text = text.trim_start_matches('\n');
+	}
+	if trim_end {
+		text = text.trim_end_matches('\n');
+	}
+	if !text.trim().is_empty() {
+		parts.push(EvalOutputPart::Text(text.to_string()));
+	}
+}
+
+/// Evictable status events a log keeps: a cell polling a helper in a loop emits
+/// one event per call, and every live update and the persisted tool result
+/// would otherwise carry them all.
+pub const MAX_STATUS_EVENTS: usize = 200;
+
+/// A status event emitted by eval prelude helpers for rendering.
+#[derive(Clone, Debug, Default)]
+pub struct EvalStatusEvent {
+	/// Event op, e.g. `agent`, `todo`, `mcp_progress`.
+	pub op: String,
+	/// Validated thinking level supplied by the execution layer.
+	pub resolved_thinking_level: Option<String>,
+	/// Remaining payload fields.
+	pub fields: serde_json::Map<String, serde_json::Value>,
+}
+
+impl PartialEq for EvalStatusEvent {
+	fn eq(&self, other: &Self) -> bool {
+		self.op == other.op
+			&& self.resolved_thinking_level == other.resolved_thinking_level
+			&& self.fields == other.fields
+	}
+}
+
+impl EvalStatusEvent {
+	/// Attach `key`/`value` to the event payload.
+	pub fn with_field(mut self, key: &str, value: impl Into<serde_json::Value>) -> Self {
+		self.fields.insert(key.to_string(), value.into());
+		self
+	}
+}
+
+/// A status event list plus the count of evictable events dropped from its front.
+#[derive(Clone, Debug, Default)]
+pub struct StatusEventLog {
+	/// Kept events, oldest first.
+	pub status_events: Vec<EvalStatusEvent>,
+	/// Evictable events dropped from the front.
+	pub status_events_elided: usize,
+}
+
+/// Coalescing key of a progress-snapshot event: `agent`, `judge_batch`, and
+/// `mcp_progress` events keyed by `id`, where only the newest snapshot matters.
+/// Discrete actions (everything else) have no key.
+pub fn status_event_key(event: &EvalStatusEvent) -> Option<String> {
+	if !matches!(event.op.as_str(), "agent" | "judge_batch" | "mcp_progress") {
+		return None;
+	}
+	let id = event
+		.fields
+		.get("id")
+		.and_then(serde_json::Value::as_str)?;
+	Some(format!("{}\u{0}{id}", event.op))
+}
+
+/// Append or replace a status event. Progress snapshots coalesce in place,
+/// preserving first-seen order; every other op is a discrete action and simply
+/// appends.
+pub fn upsert_status_event(events: &mut Vec<EvalStatusEvent>, event: EvalStatusEvent) {
+	if let Some(key) = status_event_key(&event) {
+		if let Some(index) = events
+			.iter()
+			.position(|existing| status_event_key(existing).as_deref() == Some(key.as_str()))
+		{
+			events[index] = event;
+			return;
+		}
+	}
+	events.push(event);
+}
+
+/// [`upsert_status_event`] into a bounded log. Past [`MAX_STATUS_EVENTS`], the
+/// oldest discrete event or MCP progress snapshot is dropped and counted. Agent
+/// and judgment-batch snapshots stay, since agent cards read them, and so does
+/// the newest committed `todo` result, which the session todo panel refreshes
+/// from.
+pub fn record_status_event(log: &mut StatusEventLog, event: EvalStatusEvent) {
+	upsert_status_event(&mut log.status_events, event);
+	if log.status_events.len() <= MAX_STATUS_EVENTS {
+		return;
+	}
+	let keep = log
+		.status_events
+		.iter()
+		.rposition(|existing| {
+			existing.op == "todo"
+				&& existing
+					.fields
+					.get("committed")
+					.and_then(serde_json::Value::as_bool)
+					.is_some_and(|committed| committed)
+		});
+	let oldest = log
+		.status_events
+		.iter()
+		.enumerate()
+		.position(|(index, existing)| {
+			Some(index) != keep && (existing.op == "mcp_progress" || status_event_key(existing).is_none())
+		});
+	let Some(oldest) = oldest else {
+		return;
+	};
+	log.status_events.remove(oldest);
+	log.status_events_elided += 1;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,31 +320,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn dedents_and_collapses_blank_runs() {
-        let source = "\n    a\n\n\n\n    b\n";
-        assert_eq!(
-            format_eval_code_for_display(source, EvalLanguage::Python),
-            "a\n\nb"
-        );
-    }
-
-    #[test]
-    fn trims_trailing_whitespace() {
-        assert_eq!(
-            format_eval_code_for_display("a   \nb\t\n", EvalLanguage::JavaScript),
-            "a\nb"
-        );
-    }
-
-    #[test]
-    fn caps_the_displayed_line_count() {
-        let source = (0..40).map(|index| format!("line {index}")).collect::<Vec<_>>().join("\n");
-        let formatted = format_eval_code_for_display(&source, EvalLanguage::JavaScript);
-        let lines: Vec<&str> = formatted.split('\n').collect();
-        assert_eq!(lines.len(), EVAL_DISPLAY_MAX_LINES + 1);
-        assert!(lines.last().unwrap().contains("more lines"));
-    }
 
     #[test]
     fn empty_source_is_safe() {

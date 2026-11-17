@@ -33,8 +33,8 @@ pub struct BackgroundChrome {
 ///
 /// Returns `None` when `bg_fn` is absent or its output carries no known
 /// background escape.
-pub fn sample_background(
-	bg_fn: Option<&dyn Fn(&str) -> String>,
+pub fn sample_background<F: Fn(&str) -> String + ?Sized>(
+	bg_fn: Option<&F>,
 	theme: &Theme,
 ) -> Option<ThemeBg> {
 	let bg_fn = bg_fn?;
@@ -45,8 +45,8 @@ pub fn sample_background(
 ///
 /// Returns `None` when `color` is absent, its output has no style token, or the
 /// first token is not a valid `ThemeColor`.
-pub fn sample_foreground(
-	color: Option<&dyn Fn(&str) -> String>,
+pub fn sample_foreground<F: Fn(&str) -> String + ?Sized>(
+	color: Option<&F>,
 	theme: &Theme,
 ) -> Option<ThemeColor> {
 	let color = color?;

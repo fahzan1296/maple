@@ -164,14 +164,51 @@ impl NativeState {
             .retain(|(listener, _)| *listener != id);
     }
 }
-
 static NATIVE_STATE: LazyLock<NativeState> = LazyLock::new(NativeState::default);
 
 /// The process-wide native state.
 pub fn native_state() -> &'static NativeState {
-    &NATIVE_STATE
+	&NATIVE_STATE
 }
 
+/// Whether a TSP surface is live in this process.
+pub fn is_native_rendering() -> bool {
+	native_state().is_native_rendering()
+}
+
+/// Set process-wide native rendering; the backend calls this on open and close.
+pub fn set_native_rendering(on: bool) {
+	native_state().set_native_rendering(on);
+}
+
+/// Whether the live terminal draws the `button` kind.
+pub fn native_buttons() -> bool {
+	native_state().native_buttons()
+}
+
+/// Set whether the live terminal draws the `button` kind.
+pub fn set_native_buttons(on: bool) {
+	native_state().set_native_buttons(on);
+}
+
+/// Whether a live surface's terminal paces streamed `md`.
+pub fn native_pacing() -> bool {
+	native_state().native_pacing()
+}
+
+/// Set whether a live surface's terminal paces streamed `md`.
+pub fn set_native_pacing(on: bool) {
+	native_state().set_native_pacing(on);
+}
+
+/// Call `listener` whenever native rendering starts or stops; returns an
+/// unsubscribe closure.
+pub fn on_native_rendering_change(
+	listener: impl Fn(bool) + Send + 'static,
+) -> impl FnOnce() + Send {
+	let id = native_state().on_native_rendering_change(listener);
+	move || native_state().remove_listener(id)
+}
 /// The memo key: theme epoch plus surface geometry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SettleKey {

@@ -353,7 +353,194 @@ pub struct ShellVizPresentation {
     pub message: Option<String>,
 }
 
-/// Python-like Pseudo, all layers enabled, one pane, live, paused, normal speed.
+/// Canonical ordered views used by the inspector and native event adapter.
+pub const SHELL_VIZ_VIEWS: [ShellVizView; 2] = [ShellVizView::Raw, ShellVizView::Pseudo];
+
+/// Canonical toggleable semantic layers.
+pub const SHELL_VIZ_LAYERS: [&str; 5] = ["color", "inline", "idioms", "effects", "unwrap"];
+
+/// Minimal native UI event shape consumed by [`shell_viz_event_action`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum ShellVizUiEvent {
+	Action { act: String, value: String },
+	Select { item: String },
+	Change { item: String, value: ShellVizUiValue },
+}
+
+/// Value payload carried by a change/select-like shell-viz UI event.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ShellVizUiValue {
+	Bool(bool),
+	Number(f64),
+	Text(String),
+}
+
+fn shell_viz_layer_from_item(item: &str) -> Option<&'static str> {
+	let bare = item.strip_prefix("layer:").unwrap_or(item);
+	SHELL_VIZ_LAYERS.into_iter().find(|layer| *layer == bare)
+}
+
+/// Normalize action/change/selection events to the shared action vocabulary.
+pub fn shell_viz_event_action(event: &ShellVizUiEvent, preferences: &ShellVizPreferences) -> Option<String> {
+	match event {
+		ShellVizUiEvent::Action { act, value } => {
+			if act == "shell-viz" {
+				Some(value.clone())
+			} else {
+				None
+			}
+		}
+		ShellVizUiEvent::Select { item } => {
+			if item.starts_with("select:") {
+				Some(item.clone())
+			} else {
+				Some(format!("select:{item}"))
+			}
+		}
+		ShellVizUiEvent::Change { item, value } => match value {
+			ShellVizUiValue::Text(text) => {
+				if (item == "select" || item == "expand") && is_shell_viz_node(text) {
+					Some(format!("{item}:{text}"))
+				} else if text.contains(':') {
+					Some(text.clone())
+				} else if item == "shell-viz" {
+					Some(text.clone())
+				} else if item.starts_with("view:") {
+					Some(item.clone())
+				} else if item == "cursor" || item == "seek" {
+					Some(format!("seek:{text}"))
+				} else {
+					Some(format!("{item}:{text}"))
+				}
+			}
+			ShellVizUiValue::Bool(b) => {
+				if item == "split" {
+					(*b != preferences.split).then_some("split".to_string())
+				} else if let Some(layer) = shell_viz_layer_from_item(item) {
+					let current = match layer {
+						"color" => preferences.layers.color,
+						"inline" => preferences.layers.inline,
+						"idioms" => preferences.layers.idioms,
+						"effects" => preferences.layers.effects,
+						"unwrap" => preferences.layers.unwrap,
+						_ => false,
+					};
+					(*b != current).then_some(format!("layer:{layer}"))
+				} else if item.starts_with("view:") && *b {
+					Some(item.clone())
+				} else {
+					Some(format!("{item}:{b}"))
+				}
+			}
+			ShellVizUiValue::Number(n) => {
+				if item == "cursor" || item == "seek" {
+					Some(format!("seek:{n}"))
+				} else {
+					Some(format!("{item}:{n}"))
+				}
+			}
+		},
+	}
+}
+
+/// Apply shared actions; node keys remain opaque and playback values remain numeric.
+pub fn change_shell_viz_preferences(
+	preferences: &ShellVizPreferences,
+	action: &str,
+	length: usize,
+) -> ShellVizPreferences {
+	let mut next = preferences.clone();
+	if let Some(view_name) = action.strip_prefix("view:") {
+		next.view = match view_name {
+			"raw" => ShellVizView::Raw,
+			"pseudo" => ShellVizView::Pseudo,
+			_ => return preferences.clone(),
+		};
+		return next;
+	}
+	if let Some(layer) = action.strip_prefix("layer:") {
+		match layer {
+			"color" => next.layers.color = !next.layers.color,
+			"inline" => next.layers.inline = !next.layers.inline,
+			"idioms" => next.layers.idioms = !next.layers.idioms,
+			"effects" => next.layers.effects = !next.layers.effects,
+			"unwrap" => next.layers.unwrap = !next.layers.unwrap,
+			_ => return preferences.clone(),
+		}
+		return next;
+	}
+	match action {
+		"split" => {
+			next.split = !next.split;
+		}
+		"play" => {
+			next.playing = length > 0;
+			if next.cursor.is_none() || next.cursor.unwrap_or(0.0) >= length as f64 {
+				next.cursor = Some(0.0);
+			}
+		}
+		"pause" => {
+			next.playing = false;
+		}
+		"step" => {
+			next.playing = false;
+			let cur = next.cursor.unwrap_or(length as f64);
+			next.cursor = Some((cur + 1.0).min(length as f64));
+		}
+		"reset" => {
+			next.playing = false;
+			next.cursor = Some(0.0);
+		}
+		"live" => {
+			next.playing = false;
+			next.cursor = None;
+		}
+		_ if action.starts_with("select:") || action.starts_with("expand:") => {
+			let Some((kind, key)) = action.split_once(':') else {
+				return preferences.clone();
+			};
+			if !is_shell_viz_node(key) {
+				return preferences.clone();
+			}
+			if kind == "select" {
+				next.selected_node = Some(ShellVizNode(key.to_string()));
+			} else {
+				let node = ShellVizNode(key.to_string());
+				if let Some(pos) = next.expanded_nodes.iter().position(|n| n == &node) {
+					next.expanded_nodes.remove(pos);
+				} else {
+					next.expanded_nodes.push(node);
+				}
+			}
+		}
+		_ => {
+			let Some((kind, value_str)) = action.split_once(':') else {
+				return preferences.clone();
+			};
+			match kind {
+				"speed" => {
+					let Ok(value) = value_str.parse::<f64>() else {
+						return preferences.clone();
+					};
+					if ![0.5_f64, 1.0, 2.0, 4.0].contains(&value) {
+						return preferences.clone();
+					}
+					next.speed = value;
+				}
+				"seek" => {
+					let Ok(value) = value_str.parse::<usize>() else {
+						return preferences.clone();
+					};
+					next.cursor = Some((value as f64).min(length as f64));
+					next.playing = false;
+				}
+				_ => return preferences.clone(),
+			}
+		}
+	}
+	next
+}
+ /// Python-like Pseudo, all layers enabled, one pane, live, paused, normal speed.
 pub fn default_shell_viz_preferences() -> ShellVizPreferences {
     ShellVizPreferences {
         view: ShellVizView::Pseudo,

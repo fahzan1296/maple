@@ -27,6 +27,11 @@ pub mod text;
 pub mod tree_view;
 pub mod truncated_text;
 pub mod wizard_step;
+pub mod r#box;
+pub mod cancellable_loader;
+pub mod composer;
+pub mod image;
+
 
 pub use container::Container;
 pub use input::Input;

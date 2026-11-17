@@ -13,6 +13,38 @@ const PAINT_BEGIN_SYNC: &str = "\x1b[?25l\x1b[?2026h\x1b[?7l";
 const PAINT_END_SYNC: &str = "\x1b[?7h\x1b[?2026l";
 const PAINT_BEGIN_NO_SYNC: &str = "\x1b[?25l\x1b[?7l";
 const PAINT_END_NO_SYNC: &str = "\x1b[?7h";
+/// Escape bytes a single row may carry into a paint. Zero-width escape floods
+/// (a hostile or buggy upstream) otherwise pass through unbounded: the visible
+/// text is preserved either way, so past the budget escapes are dropped while
+/// text keeps flowing.
+const MAX_ROW_ESCAPE_BYTES: usize = 4096;
+
+/// Drop escape sequences past [`MAX_ROW_ESCAPE_BYTES`] in `line`, keeping every
+/// printable character.
+fn bound_row_escapes(line: &str) -> String {
+	let mut out = String::with_capacity(line.len());
+	let mut escape_bytes = 0usize;
+	let mut bounded = false;
+	for token in crate::ansi_scan::scan(line) {
+		match token {
+			crate::ansi_scan::Token::Escape(seq) => {
+				if escape_bytes + seq.len() <= MAX_ROW_ESCAPE_BYTES {
+					escape_bytes += seq.len();
+					out.push_str(seq);
+				} else {
+					bounded = true;
+				}
+			}
+			crate::ansi_scan::Token::Text(text) => out.push_str(text),
+		}
+	}
+	if bounded {
+		out
+	} else {
+		line.to_string()
+	}
+}
+
 
 pub struct Screen {
     width: u16,
@@ -51,7 +83,7 @@ impl Screen {
         }
         let payload: Vec<String> = target
             .iter()
-            .map(|line| truncate_to_width(line, width as usize, Ellipsis::Omit))
+            .map(|line| truncate_to_width(&bound_row_escapes(line), width as usize, Ellipsis::Omit))
             .collect();
 
         let synchronized = Self::synchronized_output_enabled();
@@ -127,6 +159,90 @@ fn first_difference(previous: &[String], next: &[String]) -> Option<usize> {
         .iter()
         .zip(next.iter())
         .position(|(old, new)| old != new)
+}
+
+/// OSC 66 scaled-span prefix (`ESC ] 66 ;`).
+const OSC66_PREFIX: &str = "\x1b]66;";
+/// Maximum number of blank rows a scaled heading may reserve below it.
+const OSC66_MAX_SPACER_ROWS: usize = 6;
+
+/// Whether `line` carries an OSC 66 scaled span.
+///
+/// Reference: `l/src/utils.ts::isOsc66Line`.
+pub fn is_osc66_line(line: &str) -> bool {
+	line.contains(OSC66_PREFIX)
+}
+
+/// Largest `s=` scale among the OSC 66 spans in `line` (1 when none is scaled).
+///
+/// Reference: `l/src/utils.ts::osc66MaxScale`.
+pub fn osc66_max_scale(line: &str) -> u32 {
+	if !line.contains(OSC66_PREFIX) {
+		return 1;
+	}
+	let mut max = 1;
+	for span in line.split(OSC66_PREFIX).skip(1) {
+		let body = span
+			.split('\x07')
+			.next()
+			.unwrap_or(span);
+		let body = body.split("\x1b\\").next().unwrap_or(body);
+		let header = body.split(';').next().unwrap_or(body);
+		for part in header.split(':') {
+			let bytes = part.as_bytes();
+			if bytes.first() != Some(&b's') || bytes.get(1) != Some(&b'=') {
+				continue;
+			}
+			if let Ok(value) = part[2..].parse::<u32>() {
+				if value > max && value <= 7 {
+					max = value;
+				}
+			}
+		}
+	}
+	max
+}
+
+/// Columns to preserve when `lines[index]` is a blank row that a scaled OSC 66
+/// heading flows into, or `-1` when it is not such a row.
+///
+/// A scale-`s` heading occupies `s` rows and `visibleWidth` columns; the `s - 1`
+/// blank rows beneath hold the multicell glyph's lower half and must never be
+/// erased. Scans upward across the contiguous blank run.
+///
+/// Reference: `l/src/tui.ts::TUI#osc66SpacerGlyphWidth`.
+pub fn osc66_spacer_glyph_width(lines: &[String], index: usize) -> i64 {
+	if index == 0 || lines.get(index).is_none_or(|line| !line.is_empty()) {
+		return -1;
+	}
+	let mut gap = 1usize;
+	while gap < OSC66_MAX_SPACER_ROWS
+		&& index - gap > 0
+		&& lines.get(index - gap).is_some_and(|line| line.is_empty())
+	{
+		gap += 1;
+	}
+	let Some(above) = lines.get(index - gap) else {
+		return -1;
+	};
+	if !is_osc66_line(above) {
+		return -1;
+	}
+	if gap as i64 > osc66_max_scale(above) as i64 - 1 {
+		return -1;
+	}
+	visible_width(above) as i64
+}
+
+/// Terminal bytes rewriting one reserved OSC 66 spacer row: preserve the glyph's
+/// columns `[0, spacer_glyph_width)` and clear stale cells to their right.
+///
+/// Reference: `l/src/tui.ts::TUI#lineRewriteSequence` spacer branch.
+pub fn spacer_row_rewrite(spacer_glyph_width: i64, width: usize) -> String {
+	if spacer_glyph_width < 0 || spacer_glyph_width as usize >= width {
+		return String::new();
+	}
+	format!("\x1b[0m\x1b[{spacer_glyph_width}C\x1b[K")
 }
 
 #[cfg(test)]

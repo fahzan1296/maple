@@ -1,4 +1,5 @@
 //! Multi-field form with text, select, and toggle controls.
+//! Reference: `l/src/components/form.ts`.
 //!
 //! Ports `l/src/components/form.ts`. A [`Form`] owns focus traversal across
 //! [`FormField`]s; each field owns its value, validation error, and control

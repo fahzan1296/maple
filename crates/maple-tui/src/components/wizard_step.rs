@@ -1,4 +1,5 @@
 //! Multi-step wizard controller with per-step validation.
+//! Reference: `l/src/components/wizard-step.ts`.
 //!
 //! Ports `l/src/components/wizard-step.ts` (slot layout, gap, height budget,
 //! optional-preview collapse) and adds the step-controller surface the Rust

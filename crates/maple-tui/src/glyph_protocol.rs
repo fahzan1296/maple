@@ -1,4 +1,5 @@
 //! Glyph Protocol client (port of `l/src/glyph-protocol.ts`).
+//! Reference: `l/src/glyph-protocol.ts`.
 //!
 //! Ships the TUI's private-use icons to the terminal as APC sequences and
 //! decodes the terminal's replies. The bundled outlines live in

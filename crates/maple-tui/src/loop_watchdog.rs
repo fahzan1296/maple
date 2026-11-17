@@ -1,4 +1,5 @@
 //! UI loop watchdog (port of `l/src/loop-watchdog.ts`).
+//! Reference: `l/src/loop-watchdog.ts`.
 //!
 //! A background tick detects event-loop stalls; a stall is a block unless the
 //! process was suspended (long block with negligible CPU time).

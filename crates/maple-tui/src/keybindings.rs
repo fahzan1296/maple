@@ -1,6 +1,4 @@
-//! Canonical key ids and the keybinding manager (port of `l/src/keys.ts` and
-//! `l/src/keybindings.ts`).
-
+//! Reference: `l/src/keybindings.ts`, `l/src/keys.ts`.
 use crate::keys::Key;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 

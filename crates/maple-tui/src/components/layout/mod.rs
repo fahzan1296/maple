@@ -1,6 +1,8 @@
 //! Layout components that position children.
 
 pub mod geometry;
+pub mod layout_geometry;
+
 pub mod row;
 pub mod split_pane;
 pub mod stack;

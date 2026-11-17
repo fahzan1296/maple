@@ -1,4 +1,5 @@
 //! Theme JSON schema: the exact color-token key sets, the serializable
+//! Reference: `l/src/theme/theme-schema.ts`.
 //! [`ThemeJson`] shape, and the validation guard used by custom themes.
 //!
 //! Mirrors `l/src/theme/schema.ts` and `l/src/theme/schema-validation.ts`.
@@ -8,7 +9,7 @@ use std::fmt;
 use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::theme::color::ColorValue;
+pub use crate::theme::color::ColorValue;
 use crate::theme::symbols::{SpinnerFramesOverride, SymbolPreset};
 
 /// Every `ThemeColor` token, in schema order.

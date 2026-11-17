@@ -1,4 +1,5 @@
 //! Glyph sets used by borders, tables, quotes, and spinners.
+//! Reference: `l/src/symbols.ts`.
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LineSymbols {

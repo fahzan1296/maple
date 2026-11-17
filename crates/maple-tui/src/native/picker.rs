@@ -592,42 +592,52 @@ pub fn picker_fuzzy_hits(label: &str, query: &str) -> Option<Vec<(usize, usize)>
 }
 
 /// One picker fact column.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PickerColumn {
-    /// Column id.
-    pub id: String,
-    /// Column heading.
-    pub head: Option<String>,
-    /// Value format (`"dim"`, …).
-    pub format: Option<String>,
-    /// Sort priority.
-    pub priority: Option<i64>,
+	/// Column id.
+	pub id: String,
+	/// Column heading.
+	pub head: Option<String>,
+	/// Value format (`"dim"`, …).
+	pub format: Option<String>,
+	/// Alignment (`"start"`, `"center"`, `"end"`).
+	pub align: Option<String>,
+	/// Whether the column grows to fill remaining space.
+	pub grow: Option<bool>,
+	/// Sort priority.
+	pub priority: Option<i64>,
 }
 
 impl PickerColumn {
-    /// A column with `id`.
-    pub fn new(id: impl Into<String>) -> Self {
-        PickerColumn {
-            id: id.into(),
-            ..PickerColumn::default()
-        }
-    }
+	/// A column with `id`.
+	pub fn new(id: impl Into<String>) -> Self {
+		PickerColumn {
+			id: id.into(),
+			..PickerColumn::default()
+		}
+	}
 
-    /// The wire props of this column.
-    pub fn to_props(&self) -> Props {
-        let mut props = Props::new();
-        props.set_str("id", self.id.as_str());
-        if let Some(head) = &self.head {
-            props.set_str("head", head.as_str());
-        }
-        if let Some(format) = &self.format {
-            props.set_str("format", format.as_str());
-        }
-        if let Some(priority) = self.priority {
-            props.set_i64("priority", priority);
-        }
-        props
-    }
+	/// The wire props of this column.
+	pub fn to_props(&self) -> Props {
+		let mut props = Props::new();
+		props.set_str("id", self.id.as_str());
+		if let Some(head) = &self.head {
+			props.set_str("head", head.as_str());
+		}
+		if let Some(format) = &self.format {
+			props.set_str("format", format.as_str());
+		}
+		if let Some(align) = &self.align {
+			props.set_str("align", align.as_str());
+		}
+		if let Some(grow) = self.grow {
+			props.set_bool("grow", grow);
+		}
+		if let Some(priority) = self.priority {
+			props.set_i64("priority", priority);
+		}
+		props
+	}
 }
 
 /// One picker row.

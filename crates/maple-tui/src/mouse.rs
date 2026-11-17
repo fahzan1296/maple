@@ -1,4 +1,5 @@
 //! Mouse event model shared by the terminal backend and components.
+//! Reference: `l/src/mouse.ts`.
 
 use crossterm::event::{MouseButton, MouseEvent as CrosstermMouseEvent, MouseEventKind};
 

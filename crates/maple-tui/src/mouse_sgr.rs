@@ -1,5 +1,4 @@
-//! SGR mouse report decoding (port of `parseSgrMouse` in `l/src/mouse.ts`).
-
+//! Reference: `l/src/mouse.ts` (SGR mouse parsing; `l/src/mouse-sgr.ts` does not exist).
 use crate::mouse::{MouseButtonKind, MouseEvent, MouseKind};
 
 /// Parse `ESC [ <btn> ; col ; row (M|m)` into a cell-coordinate event.

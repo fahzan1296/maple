@@ -1,0 +1,23 @@
+{
+	"a": [["arrow_down", "\u2b07\ufe0f"], ["arrow_up", "\u2b06\ufe0f"], ["astonished", "\ud83d\ude32"]],
+	"b": [["blush", "\ud83d\ude0a"], ["boom", "\ud83d\udca5"], ["broken_heart", "\ud83d\udc94"]],
+	"c": [["clap", "\ud83d\udc4f"], ["confused", "\ud83d\ude15"], ["cry", "\ud83d\ude22"]],
+	"d": [["disappointed", "\ud83d\ude1e"], ["dizzy", "\ud83d\udcab"], ["dog", "\ud83d\udc36"]],
+	"e": [["eyes", "\ud83d\udc40"]],
+	"f": [["fire", "\ud83d\udd25"], ["frog", "\ud83d\udc38"]],
+	"g": [["grin", "\ud83d\ude01"]],
+	"h": [["heart", "\u2764\ufe0f"], ["heart_eyes", "\ud83d\ude0d"]],
+	"j": [["joy", "\ud83d\ude02"], ["joy_cat", "\ud83d\ude39"]],
+	"l": [["laughing", "\ud83d\ude06"], ["like", "\ud83d\udc4d"]],
+	"m": [["moon", "\ud83c\udf19"]],
+	"n": [["no_entry", "\u26d4"]],
+	"o": [["ok_hand", "\ud83d\udc4c"]],
+	"p": [["poop", "\ud83d\udca9"], ["pray", "\ud83d\ude4f"]],
+	"r": [["rocket", "\ud83d\ude80"], ["rofl", "\ud83e\udd23"]],
+	"s": [["shrug", "\ud83e\udd37"], ["smile", "\ud83d\ude04"], ["sparkles", "\u2728"], ["star", "\u2b50"]],
+	"t": [["tada", "\ud83c\udf89"], ["thinking", "\ud83e\udd14"], ["thumbsup", "\ud83d\udc4d"]],
+	"w": [["wave", "\ud83d\udc4b"], ["wink", "\ud83d\ude09"]],
+	"x": [["x", "\u274c"]],
+	"y": [["yum", "\ud83d\ude0b"]],
+	"z": [["zap", "\u26a1"], ["zzz", "\ud83d\udca4"]]
+}

@@ -279,6 +279,12 @@ impl NodeKind {
         )
     }
 }
+impl From<&str> for NodeKind {
+    /// Parse a wire kind name; unknown names fall back to [`NodeKind::Col`].
+    fn from(name: &str) -> Self {
+        NodeKind::from_str(name).unwrap_or(NodeKind::Col)
+    }
+}
 
 impl Default for NodeKind {
     fn default() -> Self {
@@ -474,6 +480,32 @@ impl Text {
         }
     }
 }
+impl From<Vec<Span>> for Text {
+    fn from(spans: Vec<Span>) -> Self {
+        Text::Spans(spans)
+    }
+}
+
+impl<const N: usize> From<[Span; N]> for Text {
+    fn from(spans: [Span; N]) -> Self {
+        Text::Spans(spans.into())
+    }
+}
+impl From<String> for Text {
+	fn from(text: String) -> Self {
+		Text::Plain(text)
+	}
+}
+
+impl From<&str> for Text {
+	fn from(text: &str) -> Self {
+		Text::Plain(text.to_string())
+	}
+}
+
+/// `Text` under the name describe builders use, so it does not collide with
+/// [`crate::components::Text`] at call sites.
+pub use self::Text as NodeText;
 
 impl Default for Text {
     fn default() -> Self {
@@ -507,6 +539,11 @@ impl Props {
         self.values
     }
 
+    /// Copy every prop from `other` into this set.
+    pub fn merge(&mut self, other: Props) {
+        self.values.extend(other.values);
+    }
+
     /// Borrow a prop.
     pub fn get(&self, key: &str) -> Option<&Value> {
         self.values.get(key)
@@ -535,6 +572,11 @@ impl Props {
     /// Insert a JSON prop.
     pub fn insert(&mut self, key: impl Into<String>, value: Value) {
         self.values.insert(key.into(), value);
+    }
+    /// Builder: insert a prop, consuming and returning the props.
+    pub fn set(mut self, key: impl Into<String>, value: impl Into<Value>) -> Self {
+        self.values.insert(key.into(), value.into());
+        self
     }
 
     /// Set a string prop.
@@ -1364,4 +1406,119 @@ mod tests {
         let value = row.to_value();
         assert_eq!(value["cells"]["c0"], "x");
     }
+}
+
+/// The last segment of an event keypath (`"split/sidebar/toc"` → `"toc"`).
+pub fn leaf_key(path: &str) -> &str {
+	path.rsplit('/').next().unwrap_or(path)
+}
+
+/// A primitive edit the terminal made over its own text selection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeTextEdit {
+	/// Selection/edit start offset.
+	pub from: usize,
+	/// Selection/edit end offset.
+	pub to: usize,
+	/// Inserted text.
+	pub text: String,
+	/// Cursor offset.
+	pub cursor: usize,
+	/// Reported text length.
+	pub len: usize,
+}
+
+/// A [`NativeTextEdit`] checked against the current text and clamped.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedTextEdit {
+	/// Clamped start.
+	pub from: usize,
+	/// Clamped end.
+	pub to: usize,
+	/// Cleaned replacement text.
+	pub text: String,
+	/// Clamped cursor.
+	pub cursor: usize,
+}
+
+/// `value` clamped to `[0, max]`.
+pub fn clamp_text_offset(value: usize, max: usize) -> usize {
+	value.min(max)
+}
+
+/// Check `edit` against `current` and resolve it: `None` when a boundary would
+/// split a UTF-8 char or offsets are invalid after widening/clamping. Stale
+/// `len` is tolerated (TS `string.length` is UTF-16 code units; range safety is
+/// enforced on UTF-8 byte boundaries).
+pub fn resolve_text_edit(
+	current: &str,
+	edit: &NativeTextEdit,
+	clean: &dyn Fn(&str) -> String,
+	widen: Option<&dyn Fn(usize, usize) -> (usize, usize)>,
+) -> Option<ResolvedTextEdit> {
+	let max = current.len();
+	let mut from = clamp_text_offset(edit.from, max);
+	let mut to = clamp_text_offset(edit.to, max);
+	if from > to {
+		std::mem::swap(&mut from, &mut to);
+	}
+	if let Some(w) = widen {
+		let (wf, wt) = w(from, to);
+		from = clamp_text_offset(wf, max);
+		to = clamp_text_offset(wt, max);
+		if from > to {
+			std::mem::swap(&mut from, &mut to);
+		}
+	}
+	if !current.is_char_boundary(from) || !current.is_char_boundary(to) {
+		return None;
+	}
+	let cursor = clamp_text_offset(edit.cursor, max.min(current.len()));
+	Some(ResolvedTextEdit {
+		from,
+		to,
+		text: clean(&edit.text),
+		cursor,
+	})
+}
+
+#[cfg(test)]
+mod node_edit_helpers_tests {
+	use super::*;
+
+	#[test]
+	fn leaf_key_returns_last_segment() {
+		assert_eq!(leaf_key("split/sidebar/toc"), "toc");
+		assert_eq!(leaf_key("root"), "root");
+		assert_eq!(leaf_key(""), "");
+	}
+
+	#[test]
+	fn clamp_and_resolve_text_edit() {
+		assert_eq!(clamp_text_offset(9, 3), 3);
+		let edit = NativeTextEdit {
+			from: 1,
+			to: 3,
+			text: "X".into(),
+			cursor: 2,
+			len: 5,
+		};
+		let resolved = resolve_text_edit("hello", &edit, &|t| t.to_string(), None).unwrap();
+		assert_eq!(resolved.from, 1);
+		assert_eq!(resolved.to, 3);
+		assert_eq!(resolved.text, "X");
+		assert_eq!(resolved.cursor, 2);
+	}
+
+	#[test]
+	fn resolve_text_edit_rejects_non_boundary() {
+		let edit = NativeTextEdit {
+			from: 1,
+			to: 2,
+			text: String::new(),
+			cursor: 1,
+			len: 2,
+		};
+		assert!(resolve_text_edit("é", &edit, &|t| t.to_string(), None).is_none());
+	}
 }

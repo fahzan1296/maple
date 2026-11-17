@@ -1,5 +1,5 @@
-//! Windows win32-input-mode record decoding (port of
-//! `l/src/windows-input-mode.ts`).
+//! Windows win32-input-mode record decoding.
+//! Reference: `l/src/windows-input-mode.ts`.
 //!
 //! Pure parser/encoder: no Win32 calls. Records arrive as
 //! `ESC [ <Vk> ; <Sc> ; <Uc> ; <Kd> ; <Cs> ; <Rc> _`.
@@ -451,6 +451,214 @@ impl Win32InputModeDecoder {
         }
         self.pending_high_surrogate = 0;
         vec![text; repeat.max(1) as usize]
+    }
+}
+
+/// Delay before held paste-marker records are released. The reference nests a
+/// second timer of the same length so a stalled loop can drain stdin first.
+pub const PASTE_MARKER_RELEASE_TIMEOUT_MS: u64 = 75;
+
+const MAX_MARKER_RECORD_LENGTH: usize = 64;
+const PASTE_START_MARKER: &str = "\x1b[200~";
+
+/// Restores bracketed-paste delimiters that a Windows console host emitted as
+/// individual win32-input-mode key records.
+///
+/// Records are held while they might spell `ESC[200~`/`ESC[201~` and released
+/// unchanged by [`Self::flush`] when the host-side timeout expires.
+#[derive(Default)]
+pub struct Win32PasteMarkerNormalizer {
+    pending: String,
+    candidate: String,
+    index: usize,
+    marker: char,
+}
+
+fn record_at_start_len(text: &str) -> Option<usize> {
+    let rest = text.strip_prefix("\x1b[")?;
+    let mut length = 2;
+    for ch in rest.chars() {
+        if ch.is_ascii_digit() || ch == ';' {
+            length += ch.len_utf8();
+        } else if ch == '_' {
+            return Some(length + 1);
+        } else {
+            return None;
+        }
+    }
+    None
+}
+
+fn record_prefix_matches(text: &str) -> bool {
+    text.strip_prefix("\x1b[")
+        .is_some_and(|rest| rest.chars().all(|ch| ch.is_ascii_digit() || ch == ';'))
+}
+
+impl Win32PasteMarkerNormalizer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Feed input bytes and return the text that should reach the decoder.
+    pub fn process(&mut self, data: &str) -> String {
+        if self.pending.is_empty() && self.candidate.is_empty() && !data.contains('\x1b') {
+            return data.to_string();
+        }
+        self.pending.push_str(data);
+        let mut output = String::new();
+
+        while !self.pending.is_empty() {
+            match self.pending.find('\x1b') {
+                Some(escape) if escape > 0 => {
+                    output.push_str(&self.candidate);
+                    self.candidate.clear();
+                    self.index = 0;
+                    output.push_str(&self.pending[..escape]);
+                    self.pending.drain(..escape);
+                }
+                Some(_) => {}
+                None => {
+                    output.push_str(&self.candidate);
+                    self.candidate.clear();
+                    self.index = 0;
+                    output.push_str(&self.pending);
+                    self.pending.clear();
+                    break;
+                }
+            }
+
+            if self.pending.len() == 1 {
+                break;
+            }
+            if self.pending.as_bytes()[1] != b'[' {
+                output.push_str(&self.candidate);
+                self.candidate.clear();
+                self.index = 0;
+                output.push_str(&self.pending[..1]);
+                self.pending.drain(..1);
+                continue;
+            }
+            let Some(record_length) = record_at_start_len(&self.pending) else {
+                if self.pending.len() <= MAX_MARKER_RECORD_LENGTH
+                    && record_prefix_matches(&self.pending)
+                {
+                    break;
+                }
+                output.push_str(&self.candidate);
+                self.candidate.clear();
+                self.index = 0;
+                output.push_str(&self.pending[..1]);
+                self.pending.drain(..1);
+                continue;
+            };
+
+            let record: String = self.pending[..record_length].to_string();
+            self.pending.drain(..record_length);
+            let key = parse_record(&record);
+
+            if !self.candidate.is_empty() && key.is_some_and(|key| !key.down) {
+                self.candidate.push_str(&record);
+                continue;
+            }
+            if let Some(key) = key {
+                if key.down && key.state == 0 && key.repeat == 1 {
+                    let expected = if self.index == 0 {
+                        27
+                    } else {
+                        u32::from(b"[200~"[self.index - 1])
+                    };
+                    if key.uc == expected || (self.index == 4 && key.uc == 49) {
+                        if self.index == 4 {
+                            self.marker = char::from_u32(key.uc).unwrap_or('0');
+                        }
+                        self.candidate.push_str(&record);
+                        self.index += 1;
+                        if self.index == 6 {
+                            output.push_str("\x1b[20");
+                            output.push(self.marker);
+                            output.push('~');
+                            self.candidate.clear();
+                            self.index = 0;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            output.push_str(&self.candidate);
+            self.candidate.clear();
+            self.index = 0;
+            if key.is_some_and(|key| {
+                key.down && key.state == 0 && key.repeat == 1 && key.uc == 27
+            }) {
+                self.candidate = record;
+                self.index = 1;
+            } else {
+                output.push_str(&record);
+            }
+        }
+
+        output
+    }
+
+    /// Whether held bytes are waiting for more records.
+    pub fn has_pending(&self) -> bool {
+        !self.candidate.is_empty() || !self.pending.is_empty()
+    }
+
+    /// Release held bytes unchanged after the host-side timeout.
+    pub fn flush(&mut self) -> Option<String> {
+        if !self.has_pending() {
+            return None;
+        }
+        let raw = format!("{}{}", self.candidate, self.pending);
+        self.candidate.clear();
+        self.pending.clear();
+        self.index = 0;
+        Some(raw)
+    }
+}
+
+#[cfg(test)]
+mod paste_marker_tests {
+    use super::*;
+
+    fn text_record(code_unit: u32) -> String {
+        format!("\x1b[0;1;{code_unit};1;0;1_")
+    }
+
+    fn marker_records(marker: char) -> String {
+        format!(
+            "{}{}{}{}{}{}",
+            text_record(27),
+            text_record(91),
+            text_record(50),
+            text_record(48),
+            text_record(marker as u32),
+            text_record(126)
+        )
+    }
+
+    #[test]
+    fn restores_split_paste_markers() {
+        let mut normalizer = Win32PasteMarkerNormalizer::new();
+        let start = marker_records('0');
+        assert_eq!(normalizer.process(&start[..20]), "");
+        assert_eq!(normalizer.process(&start[20..]), PASTE_START_MARKER);
+        assert_eq!(normalizer.process(&marker_records('1')), "\x1b[201~");
+    }
+
+    #[test]
+    fn passes_through_plain_text_and_releases_hold() {
+        let mut normalizer = Win32PasteMarkerNormalizer::new();
+        assert_eq!(normalizer.process("hello"), "hello");
+        assert_eq!(normalizer.process("\x1b[27;1;27;1;0;1"), "");
+        assert!(normalizer.has_pending());
+        assert_eq!(
+            normalizer.flush().as_deref(),
+            Some("\x1b[27;1;27;1;0;1")
+        );
+        assert!(!normalizer.has_pending());
     }
 }
 

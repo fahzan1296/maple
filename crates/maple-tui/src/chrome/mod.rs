@@ -4,6 +4,7 @@
 //! Ported from `l/src/chrome/**` (message-frame, diff, context-usage,
 //! overlay-box) and `l/src/overlays/overlay-box.ts`.
 
+pub mod context_breakdown;
 pub mod context;
 pub mod diff;
 pub mod dynamic_border;
@@ -11,6 +12,26 @@ pub mod live_board;
 pub mod message;
 pub mod overlay_box;
 pub mod visual_truncate;
+pub mod chat_block;
+pub mod collab_qrcode;
+pub mod countdown_timer;
+pub mod error_block;
+pub mod form_theme;
+pub mod format;
+pub mod keybinding_hints;
+pub mod local_date;
+pub mod qrcode;
+pub mod segment_track;
+pub mod select_list_mouse_routing;
+pub mod selector_helpers;
+pub mod shared;
+pub mod status_notice;
+pub mod streaming_panel;
+pub mod tool_activity;
+pub mod transcript_container;
+pub mod transcript_notice;
+pub mod transcript_status;
+
 
 pub use context::{
     context_meter_thresholds, context_usage_level, format_context_usage, plan_context_map,

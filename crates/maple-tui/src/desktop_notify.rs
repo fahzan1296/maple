@@ -1,4 +1,5 @@
 //! Desktop notifications (port of `l/src/desktop-notify.ts`).
+//! Reference: `l/src/desktop-notify.ts`.
 //!
 //! Best-effort: uses `notify-send` when present, otherwise falls back to a
 //! terminal bell through the supplied writer so headless environments stay

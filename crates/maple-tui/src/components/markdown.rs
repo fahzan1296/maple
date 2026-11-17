@@ -8,8 +8,11 @@
 
 use crate::ansi_scan::strip_ansi;
 use crate::component::Component;
+use crate::latex_block::latex_to_block;
+use crate::latex_to_unicode::{is_bare_math_environment, render_math_at};
 use crate::style::{Color, Style};
 use crate::symbols::SymbolTheme;
+use crate::terminal_capabilities::terminal;
 use crate::text_shape::{pad_to_width, truncate_to_width, visible_width, wrap_text_with_ansi, Ellipsis};
 
 /// Colors and glyphs for a [`Markdown`] renderer.
@@ -19,8 +22,12 @@ pub struct MarkdownTheme {
     pub heading: Style,
     /// Body text.
     pub text: Style,
+    /// Optional prose foreground for plain paragraph runs (`assistantMessageText`).
+    pub prose: Option<Style>,
     /// Link label.
     pub link: Style,
+    /// Label color for links whose scheme an extension registered.
+    pub extension_link: Style,
     /// Link destination suffix.
     pub link_url: Style,
     /// Inline code.
@@ -58,7 +65,9 @@ impl Default for MarkdownTheme {
         MarkdownTheme {
             heading: Style::fg(Color::Cyan),
             text: Style::default(),
+            prose: None,
             link: Style::fg(Color::LightBlue),
+            extension_link: Style::fg(Color::LightBlue),
             link_url: Style::fg(Color::DarkGray),
             code: Style::fg(Color::Green),
             code_block: Style::fg(Color::Gray),
@@ -109,6 +118,8 @@ enum Block {
         rows: Vec<Vec<String>>,
     },
     Hr,
+    /// Display math body (`$$…$$`, `\[…\]`, or a bare math environment).
+    Math(String),
 }
 
 /// Markdown document renderer.
@@ -121,6 +132,8 @@ pub struct Markdown {
     table_charts_visible: bool,
     tool_result_images_visible: bool,
     on_link_click: Option<Box<dyn FnMut(&str)>>,
+    prose_transform: Option<Box<dyn Fn(&str) -> String>>,
+    text_transform: Option<Box<dyn Fn(&str) -> String>>,
     cache: Option<(String, usize, Vec<String>)>,
 }
 
@@ -228,6 +241,70 @@ fn is_table_delimiter(line: &str) -> bool {
             let cell = cell.trim();
             !cell.is_empty() && cell.contains('-') && cell.chars().all(|c| c == '-' || c == ':')
         })
+}
+
+/// Body and next line index of a display math block starting at `index`:
+/// `$$…$$`, `\[…\]`, or a bare `\begin{<math env>}…\end{…}` environment.
+fn math_block_at(lines: &[String], index: usize) -> Option<(String, usize)> {
+    let trimmed = lines[index].trim();
+    if let Some(rest) = trimmed.strip_prefix("$$") {
+        return delimiter_block(lines, index, rest, "$$");
+    }
+    if let Some(rest) = trimmed.strip_prefix("\\[") {
+        return delimiter_block(lines, index, rest, "\\]");
+    }
+    if let Some(rest) = trimmed.strip_prefix("\\begin{") {
+        let (env, _) = rest.split_once('}')?;
+        if !is_bare_math_environment(env) {
+            return None;
+        }
+        let end_token = format!("\\end{{{env}}}");
+        let mut body = String::new();
+        let mut cursor = index;
+        while cursor < lines.len() {
+            let line = lines[cursor].trim_start();
+            if let Some(at) = line.find(&end_token) {
+                if cursor > index {
+                    body.push('\n');
+                }
+                body.push_str(&line[..at + end_token.len()]);
+                return Some((body, cursor + 1));
+            }
+            if cursor > index {
+                body.push('\n');
+            }
+            body.push_str(line);
+            cursor += 1;
+        }
+        return None;
+    }
+    None
+}
+
+/// Collect a `$$…$$` / `\[…\]` block whose opener line carries `rest`.
+fn delimiter_block(lines: &[String], index: usize, rest: &str, closer: &str) -> Option<(String, usize)> {
+    if let Some(at) = rest.find(closer) {
+        return Some((rest[..at].trim().to_string(), index + 1));
+    }
+    let mut body = String::new();
+    body.push_str(rest.trim());
+    let mut cursor = index + 1;
+    while cursor < lines.len() {
+        let line = lines[cursor].trim();
+        if let Some(at) = line.find(closer) {
+            if !body.is_empty() {
+                body.push('\n');
+            }
+            body.push_str(line[..at].trim_end());
+            return Some((body, cursor + 1));
+        }
+        if !body.is_empty() {
+            body.push('\n');
+        }
+        body.push_str(line);
+        cursor += 1;
+    }
+    None
 }
 
 fn parse_blocks(lines: &[String]) -> Vec<Block> {
@@ -347,10 +424,18 @@ fn parse_blocks(lines: &[String]) -> Vec<Block> {
             });
             continue;
         }
+        if let Some((body, next)) = math_block_at(lines, index) {
+            blocks.push(Block::Math(body));
+            index = next;
+            continue;
+        }
         let mut paragraph = String::new();
         while index < lines.len() {
             let candidate = lines[index].trim_start();
             if candidate.is_empty() || is_block_start(candidate) {
+                break;
+            }
+            if math_block_at(lines, index).is_some() {
                 break;
             }
             if candidate.contains('|')
@@ -360,7 +445,7 @@ fn parse_blocks(lines: &[String]) -> Vec<Block> {
                 break;
             }
             if !paragraph.is_empty() {
-                paragraph.push(' ');
+                paragraph.push('\n');
             }
             paragraph.push_str(candidate);
             index += 1;
@@ -416,10 +501,54 @@ fn parse_link(rest: &str) -> Option<(String, String, usize)> {
 }
 
 fn render_inline(src: &str, theme: &MarkdownTheme, images: bool) -> String {
+    render_inline_impl(src, theme, images, false, None, None)
+}
+
+/// Render inline markdown. Plain runs take `theme.prose` when `prose_enabled`
+/// (paragraph context); md sub-elements and `prose_enabled == false` contexts
+/// keep their own tokens. `text_transform` paints every plain run, including
+/// md-owned spans, and wins over the paragraph `prose_transform`.
+fn render_inline_impl(
+    src: &str,
+    theme: &MarkdownTheme,
+    images: bool,
+    prose_enabled: bool,
+    text_transform: Option<&dyn Fn(&str) -> String>,
+    prose_transform: Option<&dyn Fn(&str) -> String>,
+) -> String {
     let mut out = String::new();
+    let mut plain = String::new();
+    fn flush(
+        out: &mut String,
+        plain: &mut String,
+        theme: &MarkdownTheme,
+        prose_enabled: bool,
+        text_transform: Option<&dyn Fn(&str) -> String>,
+        prose_transform: Option<&dyn Fn(&str) -> String>,
+    ) {
+        if plain.is_empty() {
+            return;
+        }
+        let text = std::mem::take(plain);
+        if let Some(transform) = text_transform {
+            out.push_str(&transform(&text));
+        } else if prose_enabled {
+            if let Some(transform) = prose_transform {
+                out.push_str(&transform(&text));
+            } else {
+                match theme.prose.as_ref() {
+                    Some(style) => out.push_str(&style.paint(&text)),
+                    None => out.push_str(&text),
+                }
+            }
+        } else {
+            out.push_str(&text);
+        }
+    }
     let mut index = 0usize;
     while index < src.len() {
         if src.as_bytes()[index] == 0x1b {
+            flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
             let len = escape_len(&src[index..]);
             out.push_str(&src[index..index + len]);
             index += len;
@@ -431,16 +560,37 @@ fn render_inline(src: &str, theme: &MarkdownTheme, images: bool) -> String {
         };
         if c == '`' {
             if let Some(end) = src[index + 1..].find('`') {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
                 let inner = &src[index + 1..index + 1 + end];
                 out.push_str(&theme.code.paint(inner));
                 index = index + 1 + end + 1;
                 continue;
             }
         }
+        if c == '\\' && src[index..].starts_with("\\$") {
+            plain.push('$');
+            index += 2;
+            continue;
+        }
+        if c == '\\' && src[index..].starts_with("\\\\") {
+            plain.push('\\');
+            index += 2;
+            continue;
+        }
+        if c == '$' || c == '\\' {
+            if let Some((rendered, end)) = render_math_at(src, index) {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
+                out.push_str(&rendered);
+                index = end;
+                continue;
+            }
+        }
         if c == '~' && src[index..].starts_with("~~") {
             if let Some(end) = src[index + 2..].find("~~") {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
                 let inner = &src[index + 2..index + 2 + end];
-                let styled = render_inline(inner, theme, images);
+                let styled =
+                    render_inline_impl(inner, theme, images, false, text_transform, prose_transform);
                 out.push_str(&theme.strikethrough.paint(&styled));
                 index = index + 2 + end + 2;
                 continue;
@@ -455,8 +605,10 @@ fn render_inline(src: &str, theme: &MarkdownTheme, images: bool) -> String {
             let delim = if double { 2 } else { 1 };
             let marker: String = std::iter::repeat(c).take(delim).collect();
             if let Some(end) = src[index + delim..].find(marker.as_str()) {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
                 let inner = &src[index + delim..index + delim + end];
-                let styled = render_inline(inner, theme, images);
+                let styled =
+                    render_inline_impl(inner, theme, images, false, text_transform, prose_transform);
                 let style = if delim == 2 { theme.bold } else { theme.italic };
                 out.push_str(&style.paint(&styled));
                 index = index + delim + end + delim;
@@ -465,6 +617,7 @@ fn render_inline(src: &str, theme: &MarkdownTheme, images: bool) -> String {
         }
         if c == '!' && src[index..].starts_with("![") {
             if let Some((alt, _url, next)) = parse_link(&src[index + 2..]) {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
                 if images {
                     let label = if alt.is_empty() { "image" } else { alt.as_str() };
                     out.push_str(&theme.code.paint(&format!("[{label}]")));
@@ -475,10 +628,18 @@ fn render_inline(src: &str, theme: &MarkdownTheme, images: bool) -> String {
         }
         if c == '[' {
             if let Some((text, url, next)) = parse_link(&src[index + 1..]) {
-                let label = render_inline(&text, theme, images);
-                let styled = Style::merge(theme.link, theme.underline).paint(&label);
-                out.push_str(&styled);
-                if !url.is_empty() && text != url {
+                flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
+                let label =
+                    render_inline_impl(&text, theme, images, false, text_transform, prose_transform);
+                let extension = !url.is_empty()
+                    && crate::render::extension_links::extension_link_scheme(url).is_some();
+                let style = if extension {
+                    Style::merge(theme.extension_link, theme.underline)
+                } else {
+                    Style::merge(theme.link, theme.underline)
+                };
+                out.push_str(&style.paint(&label));
+                if !url.is_empty() && text != url && !extension {
                     out.push(' ');
                     out.push_str(&theme.link_url.paint(&format!("({url})")));
                 }
@@ -486,10 +647,16 @@ fn render_inline(src: &str, theme: &MarkdownTheme, images: bool) -> String {
                 continue;
             }
         }
-        out.push(c);
+        plain.push(c);
         index += c.len_utf8();
     }
+    flush(&mut out, &mut plain, theme, prose_enabled, text_transform, prose_transform);
     out
+}
+
+/// Render inline markdown (styles, links, math) without block layout.
+pub fn render_inline_markdown(src: &str, theme: &MarkdownTheme) -> String {
+    render_inline(src, theme, true)
 }
 
 fn scan_links(src: &str, out: &mut Vec<String>) {
@@ -544,6 +711,7 @@ fn collect_links(blocks: &[Block], out: &mut Vec<String>) {
                 }
             }
             Block::Hr => {}
+            Block::Math(_) => {}
         }
     }
 }
@@ -597,6 +765,223 @@ fn push_wrapped(out: &mut Vec<String>, text: &str, width: usize) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Tree-guide hanging wrap (port of l/src/components/markdown.ts:836-1008).
+// ---------------------------------------------------------------------------
+
+const MIN_TREE_CONTENT_WIDTH: usize = 8;
+
+/// Continuation glyph for a tree-guide character.
+fn tree_guide_continuation(ch: char) -> Option<char> {
+    match ch {
+        '│' | '┃' | '║' => Some(ch),
+        '├' => Some('│'),
+        '┣' => Some('┃'),
+        '╠' => Some('║'),
+        '└' | '┗' | '╚' | '╰' => Some(' '),
+        '─' | '━' | '═' | ' ' => Some(' '),
+        _ => None,
+    }
+}
+
+fn is_tree_guide_anchor(ch: char) -> bool {
+    matches!(ch, '│' | '┃' | '║' | '├' | '┣' | '╠' | '└' | '┗' | '╚' | '╰')
+}
+
+fn is_tree_branch(ch: char) -> bool {
+    matches!(ch, '├' | '┣' | '╠' | '└' | '┗' | '╚' | '╰')
+}
+
+fn is_tree_connector(ch: char) -> bool {
+    matches!(ch, '─' | '━' | '═')
+}
+
+struct TreeGuidePrefix {
+    /// Byte offset just past the guide prefix.
+    end: usize,
+    /// SGR sequences seen before/between the guides.
+    codes: String,
+    /// Closer-only SGR sequences left pending after the prefix.
+    closers: String,
+    /// The visible guide characters.
+    guides: String,
+}
+
+/// Length of the SGR sequence at the start of `input`, if any.
+fn sgr_len(input: &str) -> Option<usize> {
+    let bytes = input.as_bytes();
+    if bytes.first() != Some(&0x1b) || bytes.get(1) != Some(&b'[') {
+        return None;
+    }
+    for (offset, byte) in bytes.iter().enumerate().skip(2) {
+        if (0x40..=0x7e).contains(byte) {
+            return Some(offset + 1);
+        }
+    }
+    None
+}
+
+fn is_sgr_closer(seq: &str) -> bool {
+    let Some(params) = seq.strip_prefix("\x1b[").and_then(|rest| rest.strip_suffix('m')) else {
+        return false;
+    };
+    params.is_empty()
+        || params.split(';').all(|part| {
+            matches!(part, "" | "0" | "22" | "23" | "24" | "25" | "26" | "27" | "28" | "29" | "39" | "49" | "59")
+        })
+}
+
+/// Match `^(?:\x1b\[[0-9;:]*m)*[` + guide chars + `]+` and require a branch/connector pair.
+fn match_tree_guide_prefix(line: &str) -> Option<TreeGuidePrefix> {
+    let mut codes = String::new();
+    let mut pending = String::new();
+    let mut guides = String::new();
+    let mut end = 0usize;
+    let mut index = 0usize;
+    while index < line.len() {
+        if line.as_bytes()[index] == 0x1b {
+            match sgr_len(&line[index..]) {
+                Some(len) => {
+                    pending.push_str(&line[index..index + len]);
+                    index += len;
+                }
+                None => break,
+            }
+            continue;
+        }
+        let Some(ch) = line[index..].chars().next() else {
+            break;
+        };
+        if tree_guide_continuation(ch).is_none() {
+            break;
+        }
+        guides.push(ch);
+        codes.push_str(&pending);
+        pending.clear();
+        index += ch.len_utf8();
+        end = index;
+    }
+    if index >= line.len() {
+        return None;
+    }
+    let mut branch_connector = false;
+    let mut previous: Option<char> = None;
+    for ch in guides.chars() {
+        if let Some(prev) = previous {
+            if is_tree_branch(prev) && is_tree_connector(ch) {
+                branch_connector = true;
+            }
+        }
+        previous = Some(ch);
+    }
+    if !branch_connector {
+        return None;
+    }
+    let mut closers = String::new();
+    let mut rest = pending.as_str();
+    while !rest.is_empty() {
+        if rest.starts_with("\x1b[") {
+            if let Some(len) = sgr_len(rest) {
+                let seq = &rest[..len];
+                if is_sgr_closer(seq) {
+                    closers.push_str(seq);
+                }
+                rest = &rest[len..];
+                continue;
+            }
+        }
+        rest = &rest[1..];
+    }
+    Some(TreeGuidePrefix {
+        end,
+        codes,
+        closers,
+        guides,
+    })
+}
+
+/// Drop every SGR except what follows the last bare reset (`\x1b[m`/`\x1b[0m`).
+fn compact_sgr_carry(carry: &str) -> String {
+    let short = carry.rfind("\x1b[m").map(|at| at + 3);
+    let long = carry.rfind("\x1b[0m").map(|at| at + 4);
+    match short.max(long) {
+        Some(cut) => carry[cut..].to_string(),
+        None => carry.to_string(),
+    }
+}
+
+/// Concatenate every SGR sequence in `text`.
+fn sgr_sequences(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("\x1b[") {
+        let tail = &rest[at..];
+        match sgr_len(tail) {
+            Some(len) => {
+                out.push_str(&tail[..len]);
+                rest = &tail[len..];
+            }
+            None => rest = &tail[1..],
+        }
+    }
+    out
+}
+
+/// Wrap `text` under its tree-guide prefix; returns `None` when no physical
+/// line needs hanging and the caller should use the plain wrapper.
+fn hang_wrap_tree_guide_lines(text: &str, width: usize) -> Option<Vec<String>> {
+    if width < MIN_TREE_CONTENT_WIDTH || !text.chars().any(is_tree_guide_anchor) {
+        return None;
+    }
+    let source_lines: Vec<&str> = text.split('\n').collect();
+    let hangs = |line: &str| -> Option<TreeGuidePrefix> {
+        if visible_width(line) <= width {
+            return None;
+        }
+        let prefix = match_tree_guide_prefix(line)?;
+        if width.saturating_sub(visible_width(&prefix.guides)) < MIN_TREE_CONTENT_WIDTH {
+            return None;
+        }
+        Some(prefix)
+    };
+    if !source_lines.iter().any(|line| hangs(line).is_some()) {
+        return None;
+    }
+    let mut out: Vec<String> = Vec::new();
+    let mut carry = String::new();
+    for line in source_lines {
+        let prefix = match hangs(line) {
+            Some(prefix) => prefix,
+            None => {
+                if carry.is_empty() {
+                    out.push(line.to_string());
+                } else {
+                    out.push(format!("{carry}{line}"));
+                }
+                carry = compact_sgr_carry(&format!("{carry}{}", sgr_sequences(line)));
+                continue;
+            }
+        };
+        let active_codes = format!("{carry}{}", prefix.codes);
+        let node = format!("{active_codes}{}", &line[prefix.end..]);
+        let rows = wrap_text_with_ansi(&node, width - visible_width(&prefix.guides));
+        let mut hang = String::new();
+        for guide in prefix.guides.chars() {
+            hang.push(tree_guide_continuation(guide).unwrap_or(' '));
+        }
+        let shortfall = visible_width(&prefix.guides).saturating_sub(visible_width(&hang));
+        hang.push_str(&" ".repeat(shortfall));
+        let first_rest = rows[0].strip_prefix(&active_codes).unwrap_or(&rows[0]);
+        out.push(format!("{carry}{}{first_rest}", &line[..prefix.end]));
+        let rail = format!("{active_codes}{hang}{}", prefix.closers);
+        for row in rows.iter().skip(1) {
+            out.push(format!("{rail}{row}"));
+        }
+        carry = compact_sgr_carry(&format!("{carry}{}", sgr_sequences(line)));
+    }
+    Some(out)
+}
+
 impl Markdown {
     /// Create an empty renderer with the default theme and no padding.
     pub fn new() -> Self {
@@ -609,6 +994,8 @@ impl Markdown {
             table_charts_visible: true,
             tool_result_images_visible: true,
             on_link_click: None,
+            prose_transform: None,
+            text_transform: None,
             cache: None,
         }
     }
@@ -671,6 +1058,20 @@ impl Markdown {
         self.invalidate();
     }
 
+    /// Paint every plain run through `transform`, including md-owned spans
+    /// (live-command output contract). Wins over the paragraph prose paint.
+    pub fn set_text_transform(&mut self, transform: Option<Box<dyn Fn(&str) -> String>>) {
+        self.text_transform = transform;
+        self.invalidate();
+    }
+
+    /// Paint plain paragraph runs through `transform` (`proseFg` token
+    /// contract): headings and links keep their own `md*` tokens.
+    pub fn set_prose_transform(&mut self, transform: Option<Box<dyn Fn(&str) -> String>>) {
+        self.prose_transform = transform;
+        self.invalidate();
+    }
+
     /// The active theme.
     pub fn theme(&self) -> &MarkdownTheme {
         &self.theme
@@ -722,10 +1123,35 @@ impl Markdown {
         lines
     }
 
+    fn inline(&self, src: &str, images: bool, prose_enabled: bool) -> String {
+        render_inline_impl(
+            src,
+            &self.theme,
+            images,
+            prose_enabled,
+            self.text_transform.as_deref(),
+            self.prose_transform.as_deref(),
+        )
+    }
+
     fn render_block(&self, block: &Block, width: usize, out: &mut Vec<String>) {
         match block {
             Block::Heading(depth, text) => {
-                let inline = render_inline(text, &self.theme, self.images_visible);
+                let inline = self.inline(text, self.images_visible, false);
+                // A sized H1 draws its plain text, so inline styling (math color)
+                // does not change the emitted bytes.
+                if *depth == 1 && terminal().text_sizing {
+                    let plain = strip_ansi(&inline);
+                    let plain_width = visible_width(&plain);
+                    if plain_width > 0 && plain_width * 2 <= width {
+                        let style = Style::merge(
+                            Style::merge(self.theme.heading, self.theme.bold),
+                            self.theme.underline,
+                        );
+                        out.push(style.paint(&plain));
+                        return;
+                    }
+                }
                 let style = match depth {
                     1 => Style::merge(
                         Style::merge(self.theme.heading, self.theme.bold),
@@ -741,8 +1167,20 @@ impl Markdown {
                 push_wrapped(out, &painted, width);
             }
             Block::Paragraph(text) => {
-                let inline = render_inline(text, &self.theme, self.images_visible);
-                push_wrapped(out, &inline, width);
+                let inline = self.inline(text, self.images_visible, true);
+                match hang_wrap_tree_guide_lines(&inline, width) {
+                    Some(rows) => out.extend(rows),
+                    None => push_wrapped(out, &inline, width),
+                }
+            }
+            Block::Math(body) => {
+                for line in latex_to_block(body) {
+                    out.push(truncate_to_width(
+                        &self.theme.text.paint(&line),
+                        width,
+                        Ellipsis::Omit,
+                    ));
+                }
             }
             Block::Code { lang, body } => {
                 if (lang == "chart" || lang == "mermaid") && !self.table_charts_visible {
@@ -828,7 +1266,7 @@ impl Markdown {
                 first_prefix.push_str(&self.theme.text.paint(task));
             }
             let continuation = " ".repeat(visible_width(&bullet));
-            let inline = render_inline(&item.text, &self.theme, self.images_visible);
+            let inline = self.inline(&item.text, self.images_visible, true);
             let prefix_width = visible_width(&first_prefix);
             let body_width = width.saturating_sub(prefix_width).max(1);
             let wrapped = wrap_text_with_ansi(&inline, body_width);

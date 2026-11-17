@@ -1,4 +1,5 @@
 //! Frame pacing (port of `l/src/frame-rate.ts`).
+//! Reference: `l/src/frame-rate.ts`.
 
 pub const DEFAULT_MAX_FPS: u32 = 30;
 pub const MIN_MAX_FPS: u32 = 1;

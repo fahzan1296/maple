@@ -1,4 +1,5 @@
 //! Terminal identity (port of `l/src/ttyid.ts`).
+//! Reference: `l/src/ttyid.ts`.
 
 use std::env;
 

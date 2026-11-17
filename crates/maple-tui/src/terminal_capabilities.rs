@@ -1,4 +1,5 @@
 //! Terminal capability detection and the process-wide [`TERMINAL`] state.
+//! Reference: `l/src/terminal-capabilities.ts`.
 //!
 //! Port of `l/src/terminal-capabilities.ts` (the I/O-free capability core) plus
 //! the multiplexer-session classification it depends on. Image pixel encoding,
@@ -421,6 +422,26 @@ impl MultiplexerSession {
 		}
 	}
 }
+
+/// Every environment variable multiplexer classification reads, including the
+/// `TERM` fallback. Mirrors the reference `TERMINAL_MULTIPLEXER_ENV_KEYS`.
+pub const TERMINAL_MULTIPLEXER_ENV_KEYS: &[&str] = &[
+	"HERDR_ENV",
+	"HERDR_PANE_ID",
+	"HERDR_TAB_ID",
+	"HERDR_WORKSPACE_ID",
+	"TMUX",
+	"STY",
+	"ZELLIJ",
+	"CMUX_WORKSPACE_ID",
+	"CMUX_SURFACE_ID",
+	"CMUX_REMOTE_TRANSPORT",
+	"WMUX",
+	"WMUX_SURFACE_ID",
+	"ORCA_PANE_KEY",
+	"ORCA_WORKTREE_ID",
+	"TERM",
+];
 
 /// Every multiplexer whose explicit session markers are present, in registry order.
 pub fn terminal_multiplexer_sessions(env: &impl EnvReader) -> Vec<MultiplexerSession> {
@@ -869,6 +890,27 @@ pub fn should_enable_synchronized_output_by_default(env: &impl EnvReader, termin
 			| TerminalId::Alacritty
 			| TerminalId::VSCode
 	)
+}
+
+/// DEC 2026 private-mode report outcome for synchronized output.
+///
+/// `decrpm_status` is the DECRPM status byte (`0` unrecognized, `1` set,
+/// `2` reset, `3` permanently set, `4` permanently reset), or `None` when the
+/// report omits it. Herdr declares DEC 2026 support regardless of an
+/// unrecognized reply, so only status `0` in a Herdr session keeps the mode on;
+/// a confirmed unsupported or permanently-reset report disables it.
+pub fn synchronized_output_after_decrpm_report(
+	env: &impl EnvReader,
+	terminal_id: TerminalId,
+	decrpm_status: Option<u8>,
+) -> bool {
+	if !should_enable_synchronized_output_by_default(env, terminal_id) {
+		return false;
+	}
+	match decrpm_status {
+		Some(0) => terminal_multiplexer_sessions(env).iter().any(|session| session.honors_synchronized_output()),
+		Some(_) | None => false,
+	}
 }
 
 /// Whether the terminal applies Kitty-style DECCARA rectangular SGR changes
@@ -1325,7 +1367,7 @@ impl NotificationSound {
 
 /// Structured terminal notification. Rich fields are honored only by OSC 99
 /// (Kitty) once support is confirmed; other protocols collapse to one line.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TerminalNotification {
 	/// Short title.
 	pub title: Option<String>,
@@ -1614,6 +1656,240 @@ pub fn ensure_sixel_raster_width(sequence: &str) -> String {
 	}
 
 	format!("{}!{width}?$${}", &sequence[..i], &sequence[i..])
+}
+
+#[derive(Clone, Copy)]
+struct SixelRun {
+	bits: u8,
+	count: usize,
+}
+
+#[derive(Clone)]
+enum SixelToken {
+	Run(SixelRun),
+	Raw(String),
+}
+
+#[derive(Clone)]
+struct SixelBand {
+	color: i64,
+	tokens: Vec<SixelToken>,
+}
+
+fn invalid_sixel(reason: &str) -> ! {
+	panic!("Cannot crop SIXEL: {reason}");
+}
+
+fn sixel_integer(value: &str) -> i64 {
+	let number: i64 = value.parse().unwrap_or_else(|_| invalid_sixel("integer exceeds the safe range"));
+	if number > 9_007_199_254_740_991 || number < -9_007_199_254_740_991 {
+		invalid_sixel("integer exceeds the safe range");
+	}
+	number
+}
+
+fn append_run(output: &mut Vec<String>, bits: u8, count: usize) {
+	let character = char::from_u32(63 + bits as u32).unwrap_or('?');
+	if count > 3 {
+		output.push(format!("!{count}{character}"));
+	} else {
+		output.push(std::iter::repeat(character).take(count).collect());
+	}
+}
+
+fn append_band(output: &mut Vec<String>, band: Option<&SixelBand>, shift: i32, mask: u8) {
+	let Some(band) = band else { return };
+	output.push(format!("#{}", band.color));
+	for token in &band.tokens {
+		match token {
+			SixelToken::Raw(s) => output.push(s.clone()),
+			SixelToken::Run(run) => {
+				let bits = if shift >= 0 {
+					run.bits >> (shift as u8)
+				} else {
+					(run.bits << ((-shift) as u8)) & 0x3f
+				};
+				append_run(output, bits & mask, run.count);
+			}
+		}
+	}
+}
+
+/// Crop integer pixel rows from the top of a raw (not tmux-wrapped) SIXEL DCS image.
+///
+/// Port of `cropSixelTop` from `l/src/sixel.ts`. Runs are shifted between
+/// adjacent six-pixel bands, never decoded to pixels. Palette selections,
+/// overdraw order, transparent gaps and DCS background mode are retained.
+/// A nonpositive crop returns the original sequence unchanged.
+///
+/// `max_height_pixels`, when `Some`, caps the result at a whole-band boundary
+/// (`floor(max/6)*6`) to match terminal allocation behavior.
+pub fn crop_sixel_top(sequence: &str, pixels: usize) -> String {
+	crop_sixel_top_impl(sequence, pixels, None)
+}
+
+/// Capped variant of [`crop_sixel_top`].
+pub fn crop_sixel_top_max(sequence: &str, pixels: usize, max_height_pixels: usize) -> String {
+	crop_sixel_top_impl(sequence, pixels, Some(max_height_pixels))
+}
+
+fn crop_sixel_top_impl(sequence: &str, pixels: usize, max_height_pixels: Option<usize>) -> String {
+	if pixels == 0 {
+		return sequence.to_string();
+	}
+	if let Some(max_h) = max_height_pixels {
+		let _ = max_h; // nonnegative by type
+	}
+
+	let header_re = regex::Regex::new(r"^\x1bP[0-9;]*q").expect("valid sixel header regex");
+	let Some(header_match) = header_re.find(sequence) else {
+		invalid_sixel("missing DCS introducer");
+	};
+	if !sequence.ends_with("\x1b\\") {
+		invalid_sixel("missing string terminator");
+	}
+	let header = header_match.as_str().to_string();
+	let end = sequence.len().saturating_sub(2);
+	let token_re = regex::Regex::new(r#"[?-~]|!\d+[?-~]|#\d+(?:;\d+)*|"\d+(?:;\d+)*|[-$]"#)
+		.expect("valid sixel token regex");
+	let mut palette: Vec<String> = Vec::new();
+	let mut bands: Vec<SixelBand> = Vec::new();
+	let mut band = SixelBand { color: 0, tokens: Vec::new() };
+	let mut color: i64 = 0;
+	let mut drawing = false;
+	let mut raster_parts: Option<Vec<i64>> = None;
+	let mut width: usize = 0;
+	let mut height: usize = 0;
+	let mut x: usize = 0;
+	let mut y: usize = 0;
+	let mut data_width: usize = 0;
+	let mut painted_height: usize = 0;
+	let mut cursor = header.len();
+	let bytes = sequence.as_bytes();
+
+	while cursor < end {
+		let hay = &sequence[cursor..end];
+		let Some(m) = token_re.find_at(sequence, cursor) else {
+			invalid_sixel(&format!("unsupported token at offset {cursor}"));
+		};
+		if m.start() != cursor || m.end() > end {
+			invalid_sixel(&format!("unsupported token at offset {cursor}"));
+		}
+		let token = m.as_str();
+		cursor = m.end();
+		match token.as_bytes()[0] {
+			b'"' => {
+				if raster_parts.is_some() || drawing {
+					invalid_sixel("raster attributes must occur once before drawing");
+				}
+				let parts: Vec<i64> = token[1..].split(';').map(sixel_integer).collect();
+				if parts.len() != 4 {
+					invalid_sixel("expected four raster attributes");
+				}
+				let pan = parts[0];
+				let pad = parts[1];
+				width = parts[2] as usize;
+				height = parts[3] as usize;
+				if pan == 0 || pan != pad {
+					invalid_sixel("only square pixels are supported");
+				}
+				if width == 0 || height == 0 {
+					invalid_sixel("raster dimensions must be positive");
+				}
+				raster_parts = Some(parts);
+			}
+			b'#' => {
+				let parameters: Vec<&str> = token[1..].split(';').collect();
+				color = sixel_integer(parameters[0]);
+				if parameters.len() > 1 {
+					if drawing {
+						invalid_sixel("palette definitions must precede drawing");
+					}
+					if parameters.len() != 5 || (parameters[1] != "1" && parameters[1] != "2") {
+						invalid_sixel("expected an RGB or HLS palette definition");
+					}
+					for p in parameters.iter().skip(2) {
+						sixel_integer(p);
+					}
+					palette.push(token.to_string());
+				}
+				band.tokens.push(SixelToken::Raw(format!("#{color}")));
+			}
+			b'$' => {
+				drawing = true;
+				x = 0;
+				band.tokens.push(SixelToken::Raw(token.to_string()));
+			}
+			b'-' => {
+				drawing = true;
+				bands.push(band);
+				band = SixelBand { color, tokens: Vec::new() };
+				x = 0;
+				y += 6;
+			}
+			_ => {
+				drawing = true;
+				let (count, bits_char) = if token.starts_with('!') {
+					let digits = &token[1..token.len() - 1];
+					let c = sixel_integer(digits) as usize;
+					(c, token.as_bytes()[token.len() - 1])
+				} else {
+					(1usize, token.as_bytes()[token.len() - 1])
+				};
+				if count == 0 {
+					invalid_sixel("repeat count must be positive");
+				}
+				let bits = bits_char.saturating_sub(63) & 0x3f;
+				x = x.saturating_add(count);
+				data_width = data_width.max(x);
+				if bits != 0 {
+					// highest set bit index in 6-bit value
+					let highest = 31u32.saturating_sub((bits as u32).leading_zeros());
+					painted_height = painted_height.max(y + highest as usize + 1);
+				}
+				band.tokens.push(SixelToken::Run(SixelRun { bits, count }));
+			}
+		}
+		let _ = bytes; // keep borrowed context clear
+		let _ = hay;
+	}
+	bands.push(band);
+	let Some(raster) = raster_parts else {
+		invalid_sixel("missing raster dimensions");
+	};
+	width = width.max(data_width);
+	height = height.max(painted_height);
+	let mut cropped_height = height.saturating_sub(pixels);
+	if let Some(max_h) = max_height_pixels {
+		cropped_height = cropped_height.min((max_h / 6) * 6);
+	}
+	if cropped_height == 0 {
+		return String::new();
+	}
+
+	let mut output: Vec<String> = Vec::new();
+	output.push(header);
+	output.push(format!("\"{};{};{};{}", raster[0], raster[1], width, cropped_height));
+	for p in palette {
+		output.push(p);
+	}
+	let first_band = pixels / 6;
+	let shift = (pixels % 6) as i32;
+	let band_count = (cropped_height + 5) / 6;
+	for index in 0..band_count {
+		if index > 0 {
+			output.push("-".to_string());
+		}
+		let visible = cropped_height.saturating_sub(index * 6).min(6);
+		let mask: u8 = if visible >= 6 { 0x3f } else { (1u8 << visible) - 1 };
+		append_band(&mut output, bands.get(first_band + index), shift, mask);
+		if shift != 0 {
+			output.push("$".to_string());
+			append_band(&mut output, bands.get(first_band + index + 1), shift - 6, mask);
+		}
+	}
+	output.push("\x1b\\".to_string());
+	ensure_sixel_raster_width(&output.join(""))
 }
 
 #[cfg(test)]

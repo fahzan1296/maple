@@ -111,9 +111,13 @@ impl<'a> Iterator for ActionsIter<'a> {
 /// A hint for the primary keys of one or more keybinding actions
 /// (`action_hint(["tui.select.up", "tui.select.down"], "navigate")`);
 /// `None` when every action is unbound.
-pub fn action_hint(bindings: &KeybindingsManager, actions: Actions<'_>, label: &str) -> Option<NativeHint> {
-    let mut keys: Vec<String> = Vec::new();
-    for action in actions.iter() {
+pub fn action_hint<'a>(
+	bindings: &KeybindingsManager,
+	actions: impl Into<Actions<'a>>,
+	label: &str,
+) -> Option<NativeHint> {
+	let mut keys: Vec<String> = Vec::new();
+	for action in actions.into().iter() {
         if let Some(key) = bindings.get_keys(action).first() {
             keys.push(key.clone());
         }

@@ -1,0 +1,9 @@
+Ask for a specific file or symbol instead of describing the area: `@src/lib.rs` resolves in one read.
+Type `#` for prompt actions such as copying the current line or the whole prompt.
+Type `^` to mention a model; add `:<level>` for a thinking effort.
+Slash commands accept arguments: `/model <name>` picks a model for this session.
+`{key:shift+tab}` cycles the working mode; `{keys:up,down}` moves through history.
+Double-tap `{tap:left}` to jump to the start of the current line.
+[NO-TERN] `[Tern](https://scl.so/tern)` renders chat natively in a terminal surface.
+Press `{action:tui.editor.undo}` to undo an edit, or type `#undo` in the prompt.
+Paste an image or a long snippet and it becomes an attachment chip in the prompt.

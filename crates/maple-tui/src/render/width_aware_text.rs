@@ -1,4 +1,5 @@
 //! Text whose content is reformatted against the actual render width.
+//! Reference: `l/src/render/width-aware-text.ts`.
 //!
 //! A plain [`Text`](crate::components::text::Text) receives an already
 //! formatted string and only wraps it at render time, so width-dependent layout

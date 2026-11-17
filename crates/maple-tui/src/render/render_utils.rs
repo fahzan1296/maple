@@ -1,10 +1,11 @@
 //! Shared formatting, truncation, and styling helpers for the render
 //! primitives.
 //!
-//! Every helper here is deterministic and side-effect free: they shape strings
-//! for display and never touch I/O. The few process-wide knobs (tight-layout
-//! padding, the expand key hint, sixel passthrough) are set once at startup by
-//! the embedder; `render` only reads them.
+//! Every helper here is deterministic: they shape strings for display and never
+//! touch I/O, except [`resolve_image_options`], which reads the terminal size
+//! (the reference reads `process.stdout.rows`). The few process-wide knobs
+//! (tight-layout padding, the expand key hint, sixel passthrough, inline image
+//! caps) are set once at startup by the embedder; `render` only reads them.
 //!
 //! Reference: `l/src/render/utils.ts` contributes the tree-prefix guides, the
 //! background-aware width fitter, the incremental cache-key hasher, and the
@@ -28,16 +29,27 @@
 //!   exactly as every reference call site does; the reference has no
 //!   depth/`TreeContext` overload to port.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use unicode_segmentation::UnicodeSegmentation;
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
+use std::sync::LazyLock;
+use regex::Regex;
 
 use crate::ansi_scan::{scan, Token};
+use crate::component::Component;
 use crate::style::{Color, Style};
+use crate::text_shape::visible_width;
 use crate::theme::{Theme, ThemeBg, ThemeColor};
-use crate::text_shape::{truncate_to_width, visible_width, wrap_text_with_ansi, Ellipsis};
 use unicode_width::UnicodeWidthStr;
+use unicode_segmentation::UnicodeSegmentation;
+
+pub use crate::overlays::jobs_panel::format_age;
+pub use crate::status_line::segments::{format_duration, format_number};
+pub use crate::text_shape::{truncate_to_width, wrap_text_with_ansi, Ellipsis};
+pub use crate::thinking::ConfiguredThinkingLevel;
+pub use crate::tools::ast_grep::format_count;
+pub use crate::tools::native_view::{parse_diagnostic_message, DiagnosticSeverity, ParsedDiagnostic};
+pub use crate::tools::output_meta::format_bytes;
 
 /// Display columns one tab expands to.
 pub const TAB_WIDTH: usize = 3;
@@ -189,6 +201,32 @@ pub fn sanitize_carriage_returns(text: &str) -> String {
         }
     }
     out
+}
+
+/// Sanitize raw ask option labels into unique, action-safe display copies.
+///
+/// Reference: `l/src/render/render-utils.ts::disambiguateDisplayLabels`.
+/// Degenerate input can sanitize alike (`Retry\rnow`/`Retry now`) or match a
+/// runtime action row (`Other (type your own)`); both would answer the wrong
+/// row, so colliding entries take a numeric suffix. Order and length are
+/// preserved, so indices still align with the original labels for mapping
+/// answers and dialog state back.
+pub fn disambiguate_display_labels(raw_labels: &[String], reserved_labels: &[String]) -> Vec<String> {
+    let mut taken: HashSet<String> = reserved_labels.iter().cloned().collect();
+    raw_labels
+        .iter()
+        .map(|raw| {
+            let base = sanitize_carriage_returns(raw);
+            let mut candidate = base.clone();
+            let mut suffix = 2;
+            while taken.contains(&candidate) {
+                candidate = format!("{base} ({suffix})");
+                suffix += 1;
+            }
+            taken.insert(candidate.clone());
+            candidate
+        })
+        .collect()
 }
 
 /// Split terminal output without letting carriage-return progress updates
@@ -748,6 +786,69 @@ pub fn is_sixel_protocol() -> bool {
     IMAGE_PROTOCOL.load(Ordering::Relaxed) == 1
 }
 
+// ── Inline image caps ───────────────────────────────────────────────────────
+
+static INLINE_IMAGE_MAX_COLUMNS: AtomicUsize = AtomicUsize::new(100);
+static INLINE_IMAGE_MAX_ROWS: AtomicUsize = AtomicUsize::new(20);
+
+/// Set the maximum inline image width in terminal columns; zero leaves it
+/// uncapped.
+pub fn set_inline_image_max_columns(max_columns: usize) {
+    INLINE_IMAGE_MAX_COLUMNS.store(max_columns, Ordering::Relaxed);
+}
+
+/// Set the maximum inline image height in terminal rows; zero uses the viewport
+/// limit.
+pub fn set_inline_image_max_rows(max_rows: usize) {
+    INLINE_IMAGE_MAX_ROWS.store(max_rows, Ordering::Relaxed);
+}
+
+/// Inline image dimension caps resolved from the settings and viewport.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ImageOptions {
+    /// Maximum image width in terminal columns.
+    pub max_width_cells: usize,
+    /// Maximum image height in terminal rows; `None` leaves it uncapped.
+    pub max_height_cells: Option<usize>,
+}
+
+/// Resolve the caps against an explicit viewport row count.
+///
+/// `viewport_rows == None` is the reference's `process.stdout.rows` being
+/// undefined (non-TTY, tests): the explicit row setting is honored unchanged.
+fn resolve_image_options_with_rows(viewport_rows: Option<usize>) -> ImageOptions {
+    let max_width_cells = INLINE_IMAGE_MAX_COLUMNS.load(Ordering::Relaxed);
+    let row_setting = INLINE_IMAGE_MAX_ROWS.load(Ordering::Relaxed);
+    let viewport_fraction = viewport_rows
+        .map(|rows| (rows as f64 * 0.6).floor() as usize)
+        .unwrap_or(0);
+    let max_height_cells = if row_setting == 0 {
+        if viewport_fraction == 0 {
+            None
+        } else {
+            Some(viewport_fraction)
+        }
+    } else if viewport_fraction > 0 {
+        Some(row_setting.min(viewport_fraction))
+    } else {
+        Some(row_setting)
+    };
+    ImageOptions {
+        max_width_cells,
+        max_height_cells,
+    }
+}
+
+/// Resolve inline image dimension caps from the configured limits and viewport.
+///
+/// Reference: `l/src/render/render-utils.ts::resolveImageOptions`; the viewport
+/// is `crossterm::terminal::size()`, the Rust counterpart of
+/// `process.stdout.rows`.
+pub fn resolve_image_options() -> ImageOptions {
+    let viewport_rows = crossterm::terminal::size().ok().map(|(_, rows)| rows as usize);
+    resolve_image_options_with_rows(viewport_rows)
+}
+
 /// Allow sixel payload rows to pass through unsplit and unstyled.
 pub fn set_sixel_passthrough(enabled: bool) {
     SIXEL_PASSTHROUGH.store(enabled, Ordering::Relaxed);
@@ -1255,6 +1356,1351 @@ impl<K: Clone + Eq + Hash, V> RenderCache<K, V> {
     }
 }
 
+// ── Preview limits and shared constants ─────────────────────────────────────
+
+/// Preview limits for collapsed/expanded views.
+///
+/// Reference: `l/src/render/render-utils.ts::PREVIEW_LIMITS`. The reference is a
+/// frozen object; the upper-case field names are kept so
+/// `PREVIEW_LIMITS.COLLAPSED_LINES` reads the same here.
+#[allow(non_snake_case)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PreviewLimits {
+    /// Lines shown in collapsed view.
+    pub COLLAPSED_LINES: usize,
+    /// Lines shown in expanded view.
+    pub EXPANDED_LINES: usize,
+    /// Items (files, results) shown in collapsed view.
+    pub COLLAPSED_ITEMS: usize,
+    /// Definition, type-definition and implementation locations shown collapsed.
+    pub LOCATIONS_COLLAPSED: usize,
+    /// Output preview lines in collapsed view.
+    pub OUTPUT_COLLAPSED: usize,
+    /// Output preview lines in expanded view.
+    pub OUTPUT_EXPANDED: usize,
+    /// Computer script lines shown in collapsed view.
+    pub COMPUTER_CODE_COLLAPSED: usize,
+    /// Max hunks shown when collapsed (edit tool).
+    pub DIFF_COLLAPSED_HUNKS: usize,
+    /// Max diff lines shown when collapsed (edit tool).
+    pub DIFF_COLLAPSED_LINES: usize,
+}
+
+/// The shared preview limits.
+pub const PREVIEW_LIMITS: PreviewLimits = PreviewLimits {
+    COLLAPSED_LINES: 3,
+    EXPANDED_LINES: 12,
+    COLLAPSED_ITEMS: 8,
+    LOCATIONS_COLLAPSED: 2,
+    OUTPUT_COLLAPSED: 3,
+    OUTPUT_EXPANDED: 10,
+    COMPUTER_CODE_COLLAPSED: 10,
+    DIFF_COLLAPSED_HUNKS: 8,
+    DIFF_COLLAPSED_LINES: 40,
+};
+
+/// Default number of terminal output rows shown before expansion.
+pub const DEFAULT_TERMINAL_PREVIEW_LINES: usize = 10;
+
+/// Match a Markdown fenced-code opener and capture its indentation and marker.
+pub static FENCE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^( {0,3})([`~]{3,})").expect("valid fence regex"));
+
+/// Shared empty link-target lookup for renderers without interactive links.
+pub static EMPTY_LINK_TARGETS: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
+
+/// Rows reserved for the rest of a collapsed block and the editor/status area.
+const PREVIEW_WINDOW_RESERVED_ROWS: i64 = 20;
+/// Floor so tiny or unknown viewports still show a useful window.
+const PREVIEW_WINDOW_MIN_LINES: i64 = 6;
+/// Assumed viewport when rows are unknown (non-TTY, tests).
+const PREVIEW_WINDOW_FALLBACK_ROWS: i64 = 30;
+
+/// Tail-window height for collapsed command/code previews.
+///
+/// Reference: `l/src/render/render-utils.ts::previewWindowRows`.
+pub fn preview_window_rows() -> usize {
+    let rows = crate::env_lookup("LINES")
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(PREVIEW_WINDOW_FALLBACK_ROWS);
+    (rows - PREVIEW_WINDOW_RESERVED_ROWS)
+        .max(PREVIEW_WINDOW_MIN_LINES)
+        .max(0) as usize
+}
+
+/// Default display width reserved for a resolved model badge.
+pub const FEED_MODEL_BADGE_WIDTH: usize = 30;
+
+static FEED_MODEL_BADGE_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Set whether feed rows display their resolved model badge.
+pub fn set_feed_model_badge_enabled(enabled: bool) {
+    FEED_MODEL_BADGE_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// Return whether resolved model badges are enabled.
+pub fn is_feed_model_badge_enabled() -> bool {
+    FEED_MODEL_BADGE_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Compact glyph for a configured thinking level; empty for `inherit`.
+pub fn thinking_level_glyph(level: crate::thinking::ConfiguredThinkingLevel, theme: &Theme) -> String {
+    use crate::thinking::ConfiguredThinkingLevel;
+    match level {
+        ConfiguredThinkingLevel::Inherit => String::new(),
+        ConfiguredThinkingLevel::Off => theme.status().disabled,
+        other => {
+            let key = if other == ConfiguredThinkingLevel::Auto {
+                "thinking.autoPending".to_string()
+            } else {
+                format!("thinking.{}", other.as_str())
+            };
+            let symbol = theme.symbol(&key);
+            match symbol.find(' ') {
+                Some(space) => symbol[..space].to_string(),
+                None => symbol.to_string(),
+            }
+        }
+    }
+}
+
+/// Compact feed-row prefix: thinking glyph, sanitized model identity, advisor eye.
+///
+/// Reference: `l/src/render/render-utils.ts::formatFeedModelBadge`.
+pub fn format_feed_model_badge(
+    model_identity: Option<&str>,
+    thinking_level: Option<crate::thinking::ConfiguredThinkingLevel>,
+    advisor: bool,
+    theme: &Theme,
+    max_width: usize,
+) -> String {
+    let Some(identity) = model_identity else {
+        return String::new();
+    };
+    let clean = sanitize_badge_text(identity);
+    if clean.is_empty() || max_width == 0 {
+        return String::new();
+    }
+    let glyph = thinking_level
+        .map(|level| thinking_level_glyph(level, theme))
+        .unwrap_or_default();
+    let advisor_icon = if advisor {
+        theme.icon().advisor
+    } else {
+        String::new()
+    };
+    let prefix = if glyph.is_empty() {
+        String::new()
+    } else {
+        format!("{glyph} ")
+    };
+    let suffix = if advisor_icon.is_empty() {
+        String::new()
+    } else {
+        format!(" {advisor_icon}")
+    };
+    let model_width = max_width.saturating_sub(visible_width(&prefix) + visible_width(&suffix));
+    if model_width < 1 {
+        let advisor_width = visible_width(&advisor_icon);
+        if !advisor_icon.is_empty() && advisor_width <= max_width {
+            let thinking_prefix = if !glyph.is_empty() && visible_width(&prefix) + advisor_width <= max_width {
+                prefix
+            } else {
+                String::new()
+            };
+            return format!(
+                "{}{}",
+                paint(theme, ThemeColor::Accent, &thinking_prefix),
+                paint(theme, ThemeColor::Dim, &advisor_icon)
+            );
+        }
+        return if !glyph.is_empty() && visible_width(&glyph) <= max_width {
+            paint(theme, ThemeColor::Accent, &glyph)
+        } else {
+            String::new()
+        };
+    }
+    let model = truncate_middle_to_width(&clean, model_width);
+    format!(
+        "{}{}{}",
+        paint(theme, ThemeColor::Accent, &prefix),
+        paint(theme, ThemeColor::Dim, &format!("{model}{suffix}"))
+    )
+}
+
+/// Drop control characters and collapse whitespace for badge text.
+fn sanitize_badge_text(text: &str) -> String {
+    text.chars()
+        .filter(|character| !character.is_control())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+// ── Truncation limits ────────────────────────────────────────────────────────
+
+/// Truncation lengths for different content types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TruncateLengths {
+    /// Short titles, labels.
+    pub title: usize,
+    /// Medium-length content (messages, previews).
+    pub content: usize,
+    /// Longer content (code, explanations).
+    pub long: usize,
+    /// Full line content.
+    pub line: usize,
+    /// Very short (task previews, badges).
+    pub short: usize,
+    /// Idle recap status line (~40-word LLM reply).
+    pub recap: usize,
+}
+
+/// Truncation lengths for different content types.
+pub const TRUNCATE_LENGTHS: TruncateLengths = TruncateLengths {
+    title: 60,
+    content: 80,
+    long: 100,
+    line: 110,
+    short: 40,
+    recap: 280,
+};
+
+/// Get the first nonblank preview lines, trimmed and width-capped.
+pub fn get_preview_lines(
+    text: &str,
+    max_lines: usize,
+    max_line_len: usize,
+    ellipsis: Option<Ellipsis>,
+) -> Vec<String> {
+    let ellipsis = ellipsis.unwrap_or_default();
+    text.split('\n')
+        .filter(|line| !line.trim().is_empty())
+        .take(max_lines)
+        .map(|line| truncate_to_width(line.trim(), max_line_len, ellipsis))
+        .collect()
+}
+
+/// Clip a result row only while collapsed; expanded rows stay whole.
+pub fn clip_collapsed(text: &str, max_width: usize, expanded: Option<bool>) -> String {
+    if expanded == Some(true) {
+        text.to_string()
+    } else {
+        truncate_to_width(text, max_width, Ellipsis::Unicode)
+    }
+}
+
+/// Extract the domain from a URL, stripping a `www.` prefix.
+pub fn get_domain(url: &str) -> String {
+    if let Some((_, rest)) = url.split_once("://") {
+        let host = rest
+            .split(|character| character == '/' || character == '?' || character == '#')
+            .next()
+            .unwrap_or("");
+        let host = host.rsplit('@').next().unwrap_or(host);
+        let host = host.split(':').next().unwrap_or(host);
+        if !host.is_empty() {
+            return host.strip_prefix("www.").unwrap_or(host).to_string();
+        }
+    }
+    url.to_string()
+}
+
+/// Options for [`cap_preview_lines`].
+#[derive(Clone, Debug, Default)]
+pub struct CapPreviewLinesOptions {
+    /// Maximum rows to keep; defaults to the live preview window.
+    pub max: Option<usize>,
+    /// Expanded views are never capped.
+    pub expanded: Option<bool>,
+    /// Raw prefix prepended to the overflow marker.
+    pub prefix: Option<String>,
+    /// Set to `Some(false)` to drop the expand hint.
+    pub expand_hint: Option<bool>,
+}
+
+/// Cap a pre-rendered preview to a viewport-sized tail window.
+pub fn cap_preview_lines(
+    lines: &[String],
+    theme: &Theme,
+    options: CapPreviewLinesOptions,
+) -> Vec<String> {
+    if options.expanded == Some(true) {
+        return lines.to_vec();
+    }
+    let max = options.max.unwrap_or_else(preview_window_rows);
+    if lines.len() <= max {
+        return lines.to_vec();
+    }
+    let visible = if max <= 1 {
+        Vec::new()
+    } else {
+        lines[lines.len() - (max - 1)..].to_vec()
+    };
+    let hidden = lines.len() - visible.len();
+    let hint = if options.expand_hint == Some(false) {
+        String::new()
+    } else {
+        format_expand_hint(theme, Some(false), Some(true))
+    };
+    let marker = if hint.is_empty() {
+        format!("… {hidden} earlier {}", pluralize("line", hidden))
+    } else {
+        format!("… {hidden} earlier {} {hint}", pluralize("line", hidden))
+    };
+    let mut out = Vec::with_capacity(visible.len() + 1);
+    out.push(format!(
+        "{}{}",
+        options.prefix.as_deref().unwrap_or(""),
+        paint(theme, ThemeColor::Dim, &marker)
+    ));
+    out.extend(visible);
+    out
+}
+
+/// Color of a file name or whole URL in a tool body.
+pub const FILE_NAME_COLOR: ThemeColor = ThemeColor::CustomMessageLabel;
+
+/// Presentation options for a tool title.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ToolUITitleOptions {
+    /// `Some(false)` disables bold emphasis.
+    pub bold: Option<bool>,
+}
+
+/// Render a themed tool title with optional bold emphasis.
+pub fn format_title(label: &str, theme: &Theme, options: Option<ToolUITitleOptions>) -> String {
+    let content = if options.and_then(|options| options.bold) == Some(false) {
+        label.to_string()
+    } else {
+        theme.bold(label)
+    };
+    paint(theme, ThemeColor::ToolTitle, &content)
+}
+
+/// Expand tabs in diagnostic text for terminal display.
+pub fn sanitize_diagnostic_display_text(text: &str) -> String {
+    replace_tabs(text)
+}
+
+/// Diagnostic summary and messages consumed by [`format_diagnostics`].
+#[derive(Clone, Debug, Default)]
+pub struct DiagnosticsInput {
+    /// Whether the diagnostics are errors rather than warnings.
+    pub errored: bool,
+    /// Optional summary shown beside the header.
+    pub summary: String,
+    /// Raw diagnostic messages.
+    pub messages: Vec<String>,
+}
+
+/// Options for [`format_diagnostics`].
+#[derive(Clone, Debug, Default)]
+pub struct FormatDiagnosticsOptions {
+    /// Override the `Diagnostics` header title.
+    pub title: Option<String>,
+}
+
+fn is_tree_end(
+    files: &[(String, Vec<ParsedDiagnostic>)],
+    unparsed_len: usize,
+    total_diags: usize,
+    diags_shown: usize,
+    file_idx: isize,
+    diag_idx: Option<usize>,
+    unparsed_idx: Option<usize>,
+) -> bool {
+    if total_diags > diags_shown + 1 {
+        return false;
+    }
+    if let Some(unparsed_idx) = unparsed_idx {
+        return unparsed_idx == unparsed_len - 1;
+    }
+    if let Some(diag_idx) = diag_idx {
+        let file_idx = file_idx as usize;
+        let is_last_diag_in_file = diag_idx == files[file_idx].1.len() - 1;
+        let is_last_file = file_idx == files.len() - 1;
+        return is_last_diag_in_file && is_last_file && unparsed_len == 0;
+    }
+    false
+}
+
+/// Render diagnostic summaries and optionally expanded messages.
+pub fn format_diagnostics(
+    diag: &DiagnosticsInput,
+    expanded: bool,
+    theme: &Theme,
+    get_lang_icon: &dyn Fn(&str) -> String,
+    options: Option<FormatDiagnosticsOptions>,
+) -> String {
+    if diag.messages.is_empty() {
+        return String::new();
+    }
+
+    let mut files: Vec<(String, Vec<ParsedDiagnostic>)> = Vec::new();
+    let mut unparsed: Vec<String> = Vec::new();
+    for message in &diag.messages {
+        if let Some(parsed) = parse_diagnostic_message(message) {
+            if let Some((_, diagnostics)) = files
+                .iter_mut()
+                .find(|(file_path, _)| file_path.as_str() == parsed.file_path)
+            {
+                diagnostics.push(parsed);
+            } else {
+                files.push((parsed.file_path.clone(), vec![parsed]));
+            }
+        } else {
+            unparsed.push(sanitize_diagnostic_display_text(message));
+        }
+    }
+
+    for (_, diagnostics) in &mut files {
+        diagnostics.sort_by(|left, right| {
+            left.severity
+                .rank()
+                .cmp(&right.severity.rank())
+                .then_with(|| left.line.cmp(&right.line))
+                .then_with(|| left.col.cmp(&right.col))
+                .then_with(|| left.message.cmp(&right.message))
+        });
+    }
+
+    let header_icon = if diag.errored {
+        paint(theme, ThemeColor::Error, theme.symbol("status.error"))
+    } else {
+        paint(theme, ThemeColor::Warning, theme.symbol("status.warning"))
+    };
+    let summary = sanitize_diagnostic_display_text(&diag.summary);
+    let summary_tag = if summary.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " {}",
+            paint(theme, ThemeColor::Dim, &format!("({summary})"))
+        )
+    };
+    let title = options
+        .and_then(|options| options.title)
+        .unwrap_or_else(|| "Diagnostics".to_string());
+    let mut output = format!(
+        "\n\n{} {}{}",
+        header_icon,
+        paint(theme, ThemeColor::ToolTitle, &title),
+        summary_tag
+    );
+
+    let max_diags = if expanded {
+        diag.messages.len()
+    } else {
+        5
+    };
+    let mut diags_shown = 0usize;
+    let total_parsed: usize = files.iter().map(|(_, diagnostics)| diagnostics.len()).sum();
+    let total_diags = total_parsed + unparsed.len();
+    let tree = theme.tree();
+
+    for file_index in 0..files.len() {
+        if diags_shown >= max_diags {
+            break;
+        }
+        let (file_path, diagnostics) = &files[file_index];
+        let remaining_diags_in_file = diagnostics.len();
+        let remaining_diags_after = files[file_index + 1..]
+            .iter()
+            .map(|(_, diagnostics)| diagnostics.len())
+            .sum::<usize>()
+            + unparsed.len();
+        let will_show_all_remaining =
+            diags_shown + remaining_diags_in_file + remaining_diags_after <= max_diags;
+        let is_last_file_node =
+            file_index == files.len() - 1 && unparsed.is_empty() && will_show_all_remaining;
+        let file_branch = if is_last_file_node {
+            &tree.last
+        } else {
+            &tree.branch
+        };
+        let file_icon = paint(theme, ThemeColor::Muted, &get_lang_icon(file_path));
+        output.push_str(&format!(
+            "\n {} {} {}",
+            paint(theme, ThemeColor::Dim, file_branch),
+            file_icon,
+            format_styled_path(file_path, theme)
+        ));
+
+        for diag_index in 0..diagnostics.len() {
+            if diags_shown >= max_diags {
+                break;
+            }
+            let diagnostic = &diagnostics[diag_index];
+            let is_last_diag_in_file = diag_index == diagnostics.len() - 1;
+            let at_display_limit = diags_shown + 1 >= max_diags;
+            let is_last_visible_in_file = is_last_diag_in_file || at_display_limit;
+            let is_very_last = is_tree_end(
+                &files,
+                unparsed.len(),
+                total_diags,
+                diags_shown,
+                file_index as isize,
+                Some(diag_index),
+                None,
+            );
+            let diag_branch = if is_last_file_node {
+                if is_last_visible_in_file || is_very_last {
+                    format!("  {}", tree.last)
+                } else {
+                    format!("  {}", tree.branch)
+                }
+            } else if is_last_visible_in_file || is_very_last {
+                format!("{} {}", tree.vertical, tree.last)
+            } else {
+                format!("{} {}", tree.vertical, tree.branch)
+            };
+            let severity_icon = match diagnostic.severity {
+                DiagnosticSeverity::Error => {
+                    paint(theme, ThemeColor::Error, theme.symbol("status.error"))
+                }
+                DiagnosticSeverity::Warning => {
+                    paint(theme, ThemeColor::Warning, theme.symbol("status.warning"))
+                }
+                DiagnosticSeverity::Info | DiagnosticSeverity::Hint => {
+                    paint(theme, ThemeColor::Muted, theme.symbol("status.info"))
+                }
+            };
+            let location = paint(
+                theme,
+                ThemeColor::Muted,
+                &format!(":{}:{}", diagnostic.line, diagnostic.col),
+            );
+            let code_tag = diagnostic
+                .code
+                .as_ref()
+                .map(|code| paint(theme, ThemeColor::Dim, &format!(" ({code})")))
+                .unwrap_or_default();
+            let message_color = match diagnostic.severity {
+                DiagnosticSeverity::Error => ThemeColor::Error,
+                DiagnosticSeverity::Warning => ThemeColor::Warning,
+                DiagnosticSeverity::Info | DiagnosticSeverity::Hint => ThemeColor::ToolOutput,
+            };
+            output.push_str(&format!(
+                "\n {} {}{} {}{}",
+                paint(theme, ThemeColor::Dim, &diag_branch),
+                severity_icon,
+                location,
+                paint(theme, message_color, &diagnostic.message),
+                code_tag
+            ));
+            diags_shown += 1;
+        }
+    }
+
+    for unparsed_index in 0..unparsed.len() {
+        if diags_shown >= max_diags {
+            break;
+        }
+        let message = &unparsed[unparsed_index];
+        let is_very_last = is_tree_end(
+            &files,
+            unparsed.len(),
+            total_diags,
+            diags_shown,
+            -1,
+            None,
+            Some(unparsed_index),
+        );
+        let branch = if is_very_last {
+            &tree.last
+        } else {
+            &tree.branch
+        };
+        let color = if message.contains("[error]") {
+            ThemeColor::Error
+        } else if message.contains("[warning]") {
+            ThemeColor::Warning
+        } else {
+            ThemeColor::Dim
+        };
+        output.push_str(&format!(
+            "\n {} {}",
+            paint(theme, ThemeColor::Dim, branch),
+            paint(theme, color, message)
+        ));
+        diags_shown += 1;
+    }
+
+    if total_diags > diags_shown {
+        let remaining = total_diags - diags_shown;
+        output.push_str(&format!(
+            "\n {} {}",
+            paint(theme, ThemeColor::Dim, &tree.last),
+            paint(theme, ThemeColor::Muted, &format!("… {remaining} more"))
+        ));
+        output.push(' ');
+        output.push_str(&format_expand_hint(theme, None, None));
+    }
+
+    output
+}
+
+/// Options for [`truncate_diff_by_hunk`].
+#[derive(Clone, Debug, Default)]
+pub struct TruncateDiffOptions {
+    /// Keep the tail of the diff instead of its head.
+    pub from_tail: Option<bool>,
+}
+
+/// Result of [`truncate_diff_by_hunk`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TruncateDiffResult {
+    /// The retained diff text.
+    pub text: String,
+    /// Hunks omitted by the caps.
+    pub hidden_hunks: usize,
+    /// Lines omitted by the caps.
+    pub hidden_lines: usize,
+}
+
+struct DiffSegment {
+    lines: Vec<String>,
+    is_change: bool,
+    is_ellipsis: bool,
+}
+
+fn parse_diff_segments(lines: &[String]) -> Vec<DiffSegment> {
+    let mut segments: Vec<DiffSegment> = Vec::new();
+    let mut current: Option<DiffSegment> = None;
+    for line in lines {
+        let is_change = line.starts_with('+') || line.starts_with('-');
+        let is_ellipsis = line.trim_start().starts_with("...") || line.trim().is_empty();
+        if is_ellipsis {
+            if let Some(segment) = current.take() {
+                segments.push(segment);
+            }
+            segments.push(DiffSegment {
+                lines: vec![line.clone()],
+                is_change: false,
+                is_ellipsis: true,
+            });
+        } else if let Some(segment) = current.as_mut() {
+            if segment.is_change == is_change {
+                segment.lines.push(line.clone());
+            } else {
+                let previous = current.take().expect("current segment");
+                segments.push(previous);
+                current = Some(DiffSegment {
+                    lines: vec![line.clone()],
+                    is_change,
+                    is_ellipsis: false,
+                });
+            }
+        } else {
+            current = Some(DiffSegment {
+                lines: vec![line.clone()],
+                is_change,
+                is_ellipsis: false,
+            });
+        }
+    }
+    if let Some(segment) = current {
+        segments.push(segment);
+    }
+    segments
+}
+
+/// Truncate a unified diff at hunk boundaries within the supplied preview limits.
+pub fn truncate_diff_by_hunk(
+    diff_text: &str,
+    max_hunks: usize,
+    max_lines: usize,
+    options: Option<TruncateDiffOptions>,
+) -> TruncateDiffResult {
+    if options.and_then(|options| options.from_tail) == Some(true) {
+        let reversed = diff_text
+            .split('\n')
+            .rev()
+            .collect::<Vec<_>>()
+            .join("\n");
+        let result = truncate_diff_by_hunk_head(&reversed, max_hunks, max_lines);
+        let text = result
+            .text
+            .split('\n')
+            .rev()
+            .collect::<Vec<_>>()
+            .join("\n");
+        return TruncateDiffResult {
+            text,
+            hidden_hunks: result.hidden_hunks,
+            hidden_lines: result.hidden_lines,
+        };
+    }
+    truncate_diff_by_hunk_head(diff_text, max_hunks, max_lines)
+}
+
+fn truncate_diff_by_hunk_head(
+    diff_text: &str,
+    max_hunks: usize,
+    max_lines: usize,
+) -> TruncateDiffResult {
+    let lines: Vec<String> = if diff_text.is_empty() {
+        Vec::new()
+    } else {
+        diff_text.split('\n').map(str::to_string).collect()
+    };
+    let total_stats = get_diff_stats(diff_text);
+    if lines.len() <= max_lines && total_stats.hunks <= max_hunks {
+        return TruncateDiffResult {
+            text: diff_text.to_string(),
+            hidden_hunks: 0,
+            hidden_lines: 0,
+        };
+    }
+
+    let segments = parse_diff_segments(&lines);
+    let change_line_count: usize = segments
+        .iter()
+        .filter(|segment| segment.is_change)
+        .map(|segment| segment.lines.len())
+        .sum();
+
+    if change_line_count > max_lines {
+        let mut kept: Vec<String> = Vec::new();
+        let mut kept_hunks = 0usize;
+        for segment in &segments {
+            if kept.len() >= max_lines {
+                break;
+            }
+            if segment.is_change {
+                if kept_hunks >= max_hunks {
+                    break;
+                }
+                kept_hunks += 1;
+            }
+            let take = segment.lines.len().min(max_lines - kept.len());
+            kept.extend(segment.lines[..take].iter().cloned());
+        }
+        return TruncateDiffResult {
+            text: kept.join("\n"),
+            hidden_hunks: total_stats.hunks.saturating_sub(kept_hunks),
+            hidden_lines: lines.len().saturating_sub(kept.len()),
+        };
+    }
+
+    let context_budget = max_lines - change_line_count;
+    let total_context_lines: usize = segments
+        .iter()
+        .filter(|segment| !segment.is_change)
+        .map(|segment| segment.lines.len())
+        .sum();
+    let mut kept: Vec<String> = Vec::new();
+    let mut kept_hunks = 0usize;
+    let mut kept_source_lines = 0usize;
+
+    if total_context_lines <= context_budget {
+        for segment in &segments {
+            if segment.is_change {
+                if kept_hunks >= max_hunks {
+                    break;
+                }
+                kept_hunks += 1;
+            }
+            kept.extend(segment.lines.iter().cloned());
+            kept_source_lines += segment.lines.len();
+        }
+    } else {
+        let context_ratio = if total_context_lines > 0 {
+            context_budget as f64 / total_context_lines as f64
+        } else {
+            0.0
+        };
+        let mut remaining_context_budget = context_budget;
+        for index in 0..segments.len() {
+            let segment = &segments[index];
+            if segment.is_change {
+                if kept_hunks >= max_hunks {
+                    break;
+                }
+                kept_hunks += 1;
+                kept.extend(segment.lines.iter().cloned());
+                kept_source_lines += segment.lines.len();
+                continue;
+            }
+            if remaining_context_budget <= 0 {
+                continue;
+            }
+            let allowed_lines = remaining_context_budget.min(
+                (segment.lines.len() as f64 * context_ratio)
+                    .floor()
+                    .max(1.0) as usize,
+            );
+            let output_start = kept.len();
+            let mut source_lines_added = 0usize;
+            if segment.is_ellipsis || segment.lines.len() <= allowed_lines {
+                let take = allowed_lines.min(segment.lines.len());
+                kept.extend(segment.lines[..take].iter().cloned());
+                source_lines_added = take;
+            } else {
+                let is_before_change = segments
+                    .get(index + 1)
+                    .map(|segment| segment.is_change)
+                    .unwrap_or(false);
+                let is_after_change = if index > 0 {
+                    segments[index - 1].is_change
+                } else {
+                    false
+                };
+                if is_before_change && is_after_change {
+                    if allowed_lines >= 3 {
+                        let source_budget = allowed_lines - 1;
+                        let first_count = (source_budget as f64 / 2.0).ceil() as usize;
+                        let last_count = source_budget - first_count;
+                        kept.extend(segment.lines[..first_count].iter().cloned());
+                        kept.push(String::new());
+                        if last_count > 0 {
+                            kept.extend(
+                                segment.lines[segment.lines.len() - last_count..]
+                                    .iter()
+                                    .cloned(),
+                            );
+                        }
+                        source_lines_added = source_budget;
+                    } else {
+                        let first_count = (allowed_lines as f64 / 2.0).ceil() as usize;
+                        let last_count = allowed_lines - first_count;
+                        kept.extend(segment.lines[..first_count].iter().cloned());
+                        if last_count > 0 {
+                            kept.extend(
+                                segment.lines[segment.lines.len() - last_count..]
+                                    .iter()
+                                    .cloned(),
+                            );
+                        }
+                        source_lines_added = allowed_lines;
+                    }
+                } else if is_before_change {
+                    kept.extend(
+                        segment.lines[segment.lines.len() - allowed_lines..]
+                            .iter()
+                            .cloned(),
+                    );
+                    source_lines_added = allowed_lines;
+                } else if is_after_change {
+                    kept.extend(segment.lines[..allowed_lines].iter().cloned());
+                    source_lines_added = allowed_lines;
+                } else {
+                    let take = allowed_lines.min(2);
+                    kept.extend(segment.lines[..take].iter().cloned());
+                    source_lines_added = take;
+                }
+            }
+            kept_source_lines += source_lines_added;
+            remaining_context_budget =
+                remaining_context_budget.saturating_sub(kept.len() - output_start);
+        }
+    }
+
+    TruncateDiffResult {
+        text: kept.join("\n"),
+        hidden_hunks: total_stats.hunks.saturating_sub(kept_hunks),
+        hidden_lines: lines.len().saturating_sub(kept_source_lines),
+    }
+}
+
+// ── Path utilities ───────────────────────────────────────────────────────────
+
+fn default_home_dir() -> Option<String> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|value| value.to_string_lossy().into_owned())
+}
+
+fn is_windows_home(home: &str) -> bool {
+    let bytes = home.as_bytes();
+    (bytes.len() >= 3 && bytes[1] == b':' && (bytes[2] == b'\\' || bytes[2] == b'/'))
+        || home.starts_with("\\\\")
+}
+
+fn sanitize_text(text: &str) -> String {
+    text.chars()
+        .filter(|character| !character.is_control() || matches!(character, '\t' | '\n' | '\r'))
+        .collect()
+}
+
+fn is_path_boundary(character: char) -> bool {
+    character.is_whitespace()
+        || matches!(
+            character,
+            '"' | '\'' | '`' | '(' | '[' | '{' | '=' | ',' | ':' | '<' | '>' | '&' | '|'
+        )
+}
+
+fn is_path_end(character: char) -> bool {
+    character.is_whitespace()
+        || matches!(
+            character,
+            '"' | '\'' | '`' | ')' | ']' | '}' | ',' | ';' | ':' | '<' | '>' | '&' | '|'
+        )
+}
+
+fn inside_url(text: &str, start: usize) -> bool {
+    let prefix = &text[..start];
+    let tail_start = prefix
+        .rfind(char::is_whitespace)
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    prefix[tail_start..].contains("://")
+}
+
+/// Replace a leading home directory with a portable tilde prefix.
+pub fn shorten_path(file_path: &str, home_dir: Option<&str>) -> String {
+    if file_path.is_empty() {
+        return String::new();
+    }
+    let Some(resolved_home) = home_dir.map(str::to_string).or_else(default_home_dir) else {
+        return file_path.to_string();
+    };
+    if resolved_home.is_empty() {
+        return file_path.to_string();
+    }
+    let home = resolved_home.trim_end_matches(['/', '\\']).to_string();
+    if home.is_empty() || home == "/" || home == "\\" {
+        return file_path.to_string();
+    }
+    let windows_style = is_windows_home(&home);
+    let matches_home = if windows_style {
+        file_path.len() >= home.len() && file_path[..home.len()].eq_ignore_ascii_case(&home)
+    } else {
+        file_path.starts_with(&home)
+    };
+    if matches_home {
+        let next = file_path[home.len()..].chars().next();
+        if next.map_or(true, |character| character == '/' || character == '\\') {
+            let suffix = file_path[home.len()..].replace('\\', "/");
+            return format!("~{suffix}");
+        }
+    }
+    file_path.to_string()
+}
+
+/// Shorten embedded home paths in prose.
+pub fn shorten_embedded_paths(text: &str, home_dir: Option<&str>, preserve_separators: bool) -> String {
+    let Some(resolved_home) = home_dir.map(str::to_string).or_else(default_home_dir) else {
+        return text.to_string();
+    };
+    if resolved_home.len() <= 1 {
+        return text.to_string();
+    }
+    let home = resolved_home.trim_end_matches(['/', '\\']).to_string();
+    if home.is_empty() {
+        return text.to_string();
+    }
+    let windows_style = is_windows_home(&home);
+    let pattern = if windows_style {
+        format!("(?i){}", regex::escape(&home))
+    } else {
+        regex::escape(&home)
+    };
+    let Ok(home_re) = Regex::new(&pattern) else {
+        return text.to_string();
+    };
+    let mut shortened = String::with_capacity(text.len());
+    let mut last = 0usize;
+    for matched in home_re.find_iter(text) {
+        let start = matched.start();
+        let end = matched.end();
+        let previous = text[..start].chars().next_back();
+        let next = text[end..].chars().next();
+        let boundary_before = previous.map_or(true, is_path_boundary);
+        let boundary_after = next.map_or(true, is_path_end);
+        if boundary_before && boundary_after && !inside_url(text, start) {
+            shortened.push_str(&text[last..start]);
+            shortened.push('~');
+            last = end;
+        }
+    }
+    shortened.push_str(&text[last..]);
+    if preserve_separators {
+        return shortened;
+    }
+    shortened
+        .split(' ')
+        .map(|segment| {
+            if segment.contains('~') {
+                segment.replace('\\', "/")
+            } else {
+                segment.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            if let Ok(value) = u8::from_str_radix(&input[index + 1..index + 3], 16) {
+                decoded.push(value);
+                index += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+fn file_url_path(text: &str) -> Option<String> {
+    let rest = text.strip_prefix("file://")?;
+    let decoded = percent_decode(rest);
+    if decoded.starts_with("//") {
+        let after = &decoded[2..];
+        if let Some((host, path)) = after.split_once('/') {
+            return Some(format!("//{host}{path}"));
+        }
+        return Some(decoded);
+    }
+    let bytes = decoded.as_bytes();
+    if bytes.len() >= 3 && bytes[0] == b'/' && bytes[1].is_ascii_alphabetic() && bytes[2] == b':' {
+        return Some(decoded[1..].to_string());
+    }
+    Some(decoded)
+}
+
+/// Shorten filesystem and command arguments without rewriting literal search patterns.
+pub fn shorten_tool_argument_paths(text: &str, key: Option<&str>, home_dir: Option<&str>) -> String {
+    if key == Some("url") {
+        if let Some(path) = file_url_path(text) {
+            return shorten_embedded_paths(&path, home_dir, false);
+        }
+        return text.to_string();
+    }
+    match key {
+        None | Some("path") | Some("file_path") | Some("command") | Some("task") | Some("prompt") => {
+            shorten_embedded_paths(text, home_dir, false)
+        }
+        _ => text.to_string(),
+    }
+}
+
+/// Sanitize warning text before showing it in the TUI.
+pub fn sanitize_display_warning(text: &str) -> String {
+    let cleaned = replace_tabs(&sanitize_text(text))
+        .replace(['\r', '\n'], " ");
+    shorten_embedded_paths(cleaned.trim(), None, false)
+}
+
+/// Sanitize and bound warning text before showing it in the TUI.
+pub fn sanitize_display_warnings(warnings: &[String]) -> Vec<String> {
+    let mut visible: Vec<String> = warnings
+        .iter()
+        .take(PREVIEW_LIMITS.COLLAPSED_ITEMS)
+        .map(|warning| {
+            truncate_to_width(
+                &sanitize_display_warning(warning),
+                TRUNCATE_LENGTHS.long,
+                Ellipsis::Unicode,
+            )
+        })
+        .collect();
+    let hidden = warnings.len().saturating_sub(visible.len());
+    if hidden > 0 {
+        visible.push(format!("… {hidden} more {}", pluralize("warning", hidden)));
+    }
+    visible
+}
+
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut normalized = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
+}
+
+/// Format a tool working directory when it differs from the project directory.
+pub fn format_tool_working_directory(workdir: &str, project_dir: &str) -> Option<String> {
+    if workdir.is_empty() {
+        return None;
+    }
+    let project = normalize_path(std::path::Path::new(project_dir));
+    let workdir_path = if std::path::Path::new(workdir).is_absolute() {
+        std::path::PathBuf::from(workdir)
+    } else {
+        project.join(workdir)
+    };
+    let work = normalize_path(&workdir_path);
+    if work == project {
+        return None;
+    }
+    if let Ok(relative) = work.strip_prefix(&project) {
+        let relative = relative.to_string_lossy().replace('\\', "/");
+        if !relative.is_empty() && !relative.starts_with("..") {
+            return Some(replace_tabs(&relative));
+        }
+    }
+    Some(replace_tabs(&shorten_path(
+        &work.to_string_lossy(),
+        None,
+    )))
+}
+
+// ── Parse-error helpers ──────────────────────────────────────────────────────
+
+/// Maximum number of parse errors displayed in expanded details.
+pub const PARSE_ERRORS_LIMIT: usize = 20;
+
+/// Deduplicate parse errors while preserving their original order.
+pub fn dedupe_parse_errors(errors: Option<&[String]>) -> Vec<String> {
+    let Some(errors) = errors else {
+        return Vec::new();
+    };
+    let mut seen = HashSet::new();
+    let mut deduped = Vec::new();
+    for error in errors {
+        if seen.insert(error.clone()) {
+            deduped.push(error.clone());
+        }
+    }
+    deduped
+}
+
+/// Format deduplicated parse errors with a bounded detail list.
+pub fn format_parse_errors(errors: &[String], total: Option<usize>) -> Vec<String> {
+    let deduped = dedupe_parse_errors(Some(errors));
+    if deduped.is_empty() {
+        return Vec::new();
+    }
+    let full_count = total.unwrap_or(deduped.len());
+    let capped = &deduped[..deduped.len().min(PARSE_ERRORS_LIMIT)];
+    let header = if full_count > capped.len() {
+        format!("Parse issues ({} / {}):", capped.len(), full_count)
+    } else {
+        "Parse issues:".to_string()
+    };
+    let mut out = vec![header];
+    out.extend(capped.iter().map(|error| format!("- {error}")));
+    out
+}
+
+/// Cap an upstream parse-error list, preserving the deduplicated total.
+pub fn cap_parse_errors(
+    errors: Option<&[String]>,
+    limit: Option<usize>,
+) -> (Vec<String>, usize) {
+    let deduped = dedupe_parse_errors(errors);
+    let total = deduped.len();
+    let limit = limit.unwrap_or(PARSE_ERRORS_LIMIT);
+    (deduped.into_iter().take(limit).collect(), total)
+}
+
+/// Append the indented bullet list of parse errors to `lines`.
+pub fn append_parse_errors_bullet_list(
+    lines: &mut Vec<String>,
+    parse_errors: Option<&[String]>,
+    theme: &Theme,
+    total: Option<usize>,
+) {
+    let Some(parse_errors) = parse_errors else {
+        return;
+    };
+    if parse_errors.is_empty() {
+        return;
+    }
+    let full_count = total.unwrap_or(parse_errors.len());
+    for error in parse_errors.iter().take(PARSE_ERRORS_LIMIT) {
+        lines.push(paint(theme, ThemeColor::Warning, &format!("  - {error}")));
+    }
+    if full_count > parse_errors.len().min(PARSE_ERRORS_LIMIT) {
+        lines.push(paint(
+            theme,
+            ThemeColor::Dim,
+            &format!("  … {} more", full_count - parse_errors.len().min(PARSE_ERRORS_LIMIT)),
+        ));
+    }
+}
+
+/// Human-readable summary string for the parse-issues count.
+pub fn format_parse_errors_count_label(parse_errors: &[String], total: Option<usize>) -> String {
+    let full_count = total.unwrap_or(parse_errors.len());
+    if full_count > PARSE_ERRORS_LIMIT {
+        format!("{PARSE_ERRORS_LIMIT} / {full_count} parse issues")
+    } else if full_count == 1 {
+        "1 parse issue".to_string()
+    } else {
+        format!("{full_count} parse issues")
+    }
+}
+
+/// Normalize a path argument that may be a JSON-encoded string array.
+pub fn to_path_list(input: &str) -> Vec<String> {
+    let trimmed = input.trim();
+    if !trimmed.starts_with('[') || !trimmed.ends_with(']') {
+        return vec![input.to_string()];
+    }
+    if let Ok(serde_json::Value::Array(items)) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if items.iter().all(|item| item.is_string()) {
+            return items
+                .into_iter()
+                .filter_map(|item| item.as_str().map(str::to_string))
+                .collect();
+        }
+    }
+    vec![input.to_string()]
+}
+
+/// Options for [`create_cached_component`].
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CachedComponentOptions {
+    /// Horizontal padding applied to every rendered row.
+    pub padding_x: usize,
+}
+
+struct CachedComponent {
+    get_expanded: Box<dyn Fn() -> bool>,
+    compute: Box<dyn Fn(usize, bool) -> Vec<String>>,
+    padding_x: usize,
+    cached: Option<(u64, Vec<String>)>,
+}
+
+impl Component for CachedComponent {
+    fn render(&mut self, width: u16) -> Vec<String> {
+        let expanded = (self.get_expanded)();
+        let width = width as usize;
+        let key = Hasher::new()
+            .update_flag(expanded)
+            .update_u32(width as u32)
+            .digest();
+        if let Some((cached_key, lines)) = &self.cached {
+            if *cached_key == key {
+                return lines.clone();
+            }
+        }
+        let inner_width = width.saturating_sub(self.padding_x * 2).max(1);
+        let mut lines = (self.compute)(inner_width, expanded);
+        if self.padding_x > 0 {
+            let pad = " ".repeat(self.padding_x);
+            lines = lines
+                .into_iter()
+                .map(|line| format!("{pad}{line}{pad}"))
+                .collect();
+        }
+        self.cached = Some((key, lines.clone()));
+        lines
+    }
+
+    fn invalidate(&mut self) {
+        self.cached = None;
+    }
+
+    fn dispose(&mut self) {
+        self.cached = None;
+    }
+}
+
+/// Create a width+expand keyed render cache for search-style tool renderers.
+pub fn create_cached_component<F, C>(
+    get_expanded: F,
+    compute: C,
+    options: CachedComponentOptions,
+) -> Box<dyn Component>
+where
+    F: Fn() -> bool + 'static,
+    C: Fn(usize, bool) -> Vec<String> + 'static,
+{
+    Box::new(CachedComponent {
+        get_expanded: Box::new(get_expanded),
+        compute: Box::new(compute),
+        padding_x: options.padding_x,
+        cached: None,
+    })
+}
+
+/// Fit a status header plus body rows to `width`.
+pub fn fit_headered_rows(header: &str, rows: &[String], width: usize) -> Vec<String> {
+    let mut out = wrap_text_with_ansi(header, width);
+    out.extend(
+        rows.iter()
+            .map(|row| truncate_to_width(row, width, Ellipsis::Omit)),
+    );
+    out
+}
+
+/// Single-slot memo for an expensive rendered string.
+///
+/// The theme is compared by reference address, matching the reference's
+/// `cache.theme === theme` check.
+#[derive(Clone, Debug, Default)]
+pub struct RenderedStringCache {
+    /// Address of the cached theme, or `None` when empty.
+    pub theme: Option<usize>,
+    /// Cached expansion state.
+    pub expanded: bool,
+    /// Caller-chosen salt (path/language).
+    pub salt: String,
+    /// Source content.
+    pub content: String,
+    /// Cached rendered value.
+    pub value: String,
+}
+
+/// Create an empty memo for rendered tool strings.
+pub fn create_rendered_string_cache() -> RenderedStringCache {
+    RenderedStringCache::default()
+}
+
+/// Drop the memo so the next lookup re-renders.
+pub fn invalidate_rendered_string_cache(cache: &mut RenderedStringCache) {
+    cache.theme = None;
+}
+
+/// Release every field of the memo.
+pub fn release_rendered_string_cache(cache: &mut RenderedStringCache) {
+    *cache = RenderedStringCache::default();
+}
+
+/// Reuse a rendered string while its theme, expansion, content, and salt match.
+pub fn cached_rendered_string<F>(
+    cache: Option<&mut RenderedStringCache>,
+    theme: &Theme,
+    expanded: bool,
+    salt: &str,
+    content: &str,
+    render: F,
+) -> String
+where
+    F: FnOnce() -> String,
+{
+    let theme_key = std::ptr::from_ref(theme) as usize;
+    if let Some(cache) = cache {
+        if cache.theme == Some(theme_key)
+            && cache.expanded == expanded
+            && cache.salt == salt
+            && cache.content == content
+        {
+            return cache.value.clone();
+        }
+    }
+    let value = render();
+    if let Some(cache) = cache {
+        cache.theme = Some(theme_key);
+        cache.expanded = expanded;
+        cache.salt = salt.to_string();
+        cache.content = content.to_string();
+        cache.value = value.clone();
+    }
+    value
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -1617,5 +3063,180 @@ pub mod tests {
         // A tag landing mid-label must not erase the head before it.
         let merged = composite_line_at(base, "\x1b[1;7mb\x1b[22;27m", 6, 1, 20);
         assert_eq!(crate::ansi_scan::strip_ansi(&merged).trim_end(), "Alpha beta");
+    }
+
+    #[test]
+    fn disambiguate_display_labels_suffixes_collisions() {
+        let raw = vec![
+            "Retry\rnow".to_string(),
+            "Retry now".to_string(),
+            "Other (type your own)".to_string(),
+            "Other (type your own)".to_string(),
+        ];
+        let reserved = vec!["Other (type your own)".to_string()];
+        assert_eq!(
+            disambiguate_display_labels(&raw, &reserved),
+            vec![
+                "Retry now".to_string(),
+                "Retry now (2)".to_string(),
+                "Other (type your own) (2)".to_string(),
+                "Other (type your own) (3)".to_string(),
+            ]
+        );
+        assert_eq!(
+            disambiguate_display_labels(&["Alpha".to_string()], &["Alpha".to_string()]),
+            vec!["Alpha (2)".to_string()]
+        );
+    }
+
+    #[test]
+    fn inline_image_caps_resolve_from_settings_and_viewport() {
+        set_inline_image_max_columns(40);
+        set_inline_image_max_rows(0);
+        assert_eq!(
+            resolve_image_options_with_rows(Some(50)),
+            ImageOptions {
+                max_width_cells: 40,
+                max_height_cells: Some(30),
+            }
+        );
+        assert_eq!(
+            resolve_image_options_with_rows(None),
+            ImageOptions {
+                max_width_cells: 40,
+                max_height_cells: None,
+            }
+        );
+
+        set_inline_image_max_rows(10);
+        assert_eq!(
+            resolve_image_options_with_rows(Some(50)),
+            ImageOptions {
+                max_width_cells: 40,
+                max_height_cells: Some(10),
+            }
+        );
+        assert_eq!(
+            resolve_image_options_with_rows(Some(10)),
+            ImageOptions {
+                max_width_cells: 40,
+                max_height_cells: Some(6),
+            }
+        );
+        assert_eq!(
+            resolve_image_options_with_rows(None),
+            ImageOptions {
+                max_width_cells: 40,
+                max_height_cells: Some(10),
+            }
+        );
+
+        set_inline_image_max_columns(100);
+        set_inline_image_max_rows(20);
+    }
+
+    #[test]
+    fn preview_limits_match_the_reference() {
+        assert_eq!(PREVIEW_LIMITS.COLLAPSED_LINES, 3);
+        assert_eq!(PREVIEW_LIMITS.EXPANDED_LINES, 12);
+        assert_eq!(PREVIEW_LIMITS.COLLAPSED_ITEMS, 8);
+        assert_eq!(PREVIEW_LIMITS.LOCATIONS_COLLAPSED, 2);
+        assert_eq!(PREVIEW_LIMITS.OUTPUT_COLLAPSED, 3);
+        assert_eq!(PREVIEW_LIMITS.OUTPUT_EXPANDED, 10);
+        assert_eq!(PREVIEW_LIMITS.COMPUTER_CODE_COLLAPSED, 10);
+        assert_eq!(PREVIEW_LIMITS.DIFF_COLLAPSED_HUNKS, 8);
+        assert_eq!(PREVIEW_LIMITS.DIFF_COLLAPSED_LINES, 40);
+        assert_eq!(DEFAULT_TERMINAL_PREVIEW_LINES, 10);
+    }
+
+    #[test]
+    fn fence_regex_captures_indent_and_marker() {
+        let opened = FENCE_RE.captures("  ```rust").expect("fence opener");
+        assert_eq!(opened.get(1).map(|matched| matched.as_str()), Some("  "));
+        assert_eq!(opened.get(2).map(|matched| matched.as_str()), Some("```"));
+        let tilde = FENCE_RE.captures("~~~~").expect("fence opener");
+        assert_eq!(tilde.get(1).map(|matched| matched.as_str()), Some(""));
+        assert_eq!(tilde.get(2).map(|matched| matched.as_str()), Some("~~~~"));
+        assert!(FENCE_RE.captures("    ```").is_none());
+        assert!(FENCE_RE.captures("plain").is_none());
+    }
+
+    #[test]
+    fn empty_link_targets_is_empty() {
+        assert!(EMPTY_LINK_TARGETS.is_empty());
+        assert!(EMPTY_LINK_TARGETS.get("omp://missing").is_none());
+    }
+
+    #[test]
+    fn truncate_lengths_match_the_reference() {
+        assert_eq!(TRUNCATE_LENGTHS.title, 60);
+        assert_eq!(TRUNCATE_LENGTHS.content, 80);
+        assert_eq!(TRUNCATE_LENGTHS.long, 100);
+        assert_eq!(TRUNCATE_LENGTHS.line, 110);
+        assert_eq!(TRUNCATE_LENGTHS.short, 40);
+        assert_eq!(TRUNCATE_LENGTHS.recap, 280);
+    }
+
+    #[test]
+    fn get_domain_strips_www_and_port() {
+        assert_eq!(get_domain("https://www.example.com/a"), "example.com");
+        assert_eq!(get_domain("http://example.com:8080/x"), "example.com");
+        assert_eq!(get_domain("not a url"), "not a url");
+    }
+
+    #[test]
+    fn to_path_list_parses_json_arrays_only() {
+        assert_eq!(
+            to_path_list("[\"a.ts\",\"b.ts\"]"),
+            vec!["a.ts".to_string(), "b.ts".to_string()]
+        );
+        assert_eq!(to_path_list("a.ts"), vec!["a.ts".to_string()]);
+        assert_eq!(to_path_list("[1]"), vec!["[1]".to_string()]);
+    }
+
+    #[test]
+    fn parse_error_helpers_dedupe_and_cap() {
+        let errors = vec!["a".to_string(), "b".to_string(), "a".to_string()];
+        assert_eq!(
+            dedupe_parse_errors(Some(&errors)),
+            vec!["a".to_string(), "b".to_string()]
+        );
+        assert_eq!(
+            format_parse_errors(&errors, Some(3)),
+            vec![
+                "Parse issues (2 / 3):".to_string(),
+                "- a".to_string(),
+                "- b".to_string()
+            ]
+        );
+        let (capped, total) = cap_parse_errors(Some(&errors), Some(1));
+        assert_eq!(capped, vec!["a".to_string()]);
+        assert_eq!(total, 2);
+        assert_eq!(format_parse_errors_count_label(&[], None), "0 parse issues");
+        assert_eq!(
+            format_parse_errors_count_label(&[], Some(21)),
+            "20 / 21 parse issues"
+        );
+    }
+
+    #[test]
+    fn shorten_path_replaces_only_home_prefix() {
+        assert_eq!(shorten_path("/home/me/a/b", Some("/home/me")), "~/a/b");
+        assert_eq!(shorten_path("/home/methere", Some("/home/me")), "/home/methere");
+        assert_eq!(shorten_path("/other", None), "/other");
+    }
+
+    #[test]
+    fn format_diagnostics_groups_parsed_messages() {
+        let theme = sample_theme();
+        let diag = DiagnosticsInput {
+            errored: true,
+            summary: "1 error".to_string(),
+            messages: vec!["src/a.ts:12:3 [error] [ts] Type mismatch (ts2322)".to_string()],
+        };
+        let output = format_diagnostics(&diag, false, &theme, &|_| "ts".to_string(), None);
+        assert!(output.contains("Diagnostics"));
+        assert!(output.contains("src/a.ts"));
+        assert!(output.contains("Type mismatch"));
     }
 }

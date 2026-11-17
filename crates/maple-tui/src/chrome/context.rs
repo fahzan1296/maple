@@ -1,13 +1,15 @@
-//! Context-usage chrome: level thresholds, the status-line gauge, and the
-//! token-occupancy map.
+//! Reference: `l/src/chrome/context-thresholds.ts`, `l/src/chrome/context-map.ts`, `l/src/chrome/context-presentation.ts`, `l/src/chrome/context-view-model.ts`.
 //!
 //! Ported from `l/src/chrome/context-thresholds.ts`, `l/src/chrome/context-map.ts`,
 //! `l/src/chrome/context-presentation.ts`, and the gauge fill in
 //! `l/src/status-line/component.ts`. Glyphs are the Unicode preset values from
 //! `l/src/theme/symbols.ts`; they are carried here because `symbols.rs` does not
-//! yet expose the `context.*` group.
+//! yet expose the `context.*` group. The category list and descriptors from
+//! `l/src/chrome/context-view-model.ts` live here too; its snapshot/interchange
+//! types are the overlay viewer's in `overlays/context_viewer_overview.rs`.
 
 use crate::component::Component;
+use crate::native::node::Tone;
 use crate::status_line::segments::format_number;
 use crate::style::{Color, Style};
 use crate::text_shape::{truncate_to_width, Ellipsis};
@@ -680,6 +682,158 @@ impl Component for ContextMap {
     }
 }
 
+impl ContextUsageLevel {
+    /// Native tone for this level; `None` while usage is normal.
+    pub fn tone(self) -> Option<Tone> {
+        match self {
+            ContextUsageLevel::Error => Some(Tone::Error),
+            ContextUsageLevel::Purple | ContextUsageLevel::Warning => Some(Tone::Warning),
+            ContextUsageLevel::Normal => None,
+        }
+    }
+
+    /// Theme colour key for this level.
+    pub fn theme_color(self) -> &'static str {
+        match self {
+            ContextUsageLevel::Error => "error",
+            ContextUsageLevel::Purple => "thinkingHigh",
+            ContextUsageLevel::Warning => "warning",
+            ContextUsageLevel::Normal => "statusLineContext",
+        }
+    }
+}
+
+impl ContextSegmentId {
+    /// Wire/category id, matching `ContextPresentationId`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ContextSegmentId::SystemPrompt => "system-prompt",
+            ContextSegmentId::InstructionFiles => "instruction-files",
+            ContextSegmentId::Skills => "skills",
+            ContextSegmentId::BuiltInTools => "built-in-tools",
+            ContextSegmentId::CustomTools => "custom-tools",
+            ContextSegmentId::UserMessages => "user-messages",
+            ContextSegmentId::AssistantMessages => "assistant-messages",
+            ContextSegmentId::AssistantThinking => "assistant-thinking",
+            ContextSegmentId::ToolCalls => "tool-calls",
+            ContextSegmentId::ToolOutput => "tool-output",
+            ContextSegmentId::Buffer => "buffer",
+            ContextSegmentId::Free => "free",
+        }
+    }
+
+    /// The `context.*` symbol key this segment draws.
+    pub fn symbol_key(self) -> &'static str {
+        match self {
+            ContextSegmentId::Buffer => "context.buffer",
+            ContextSegmentId::Free => "context.free",
+            ContextSegmentId::UserMessages
+            | ContextSegmentId::AssistantMessages
+            | ContextSegmentId::ToolOutput => "context.messages",
+            _ => "context.content",
+        }
+    }
+
+    /// Theme colour key from `CONTEXT_PRESENTATION`.
+    pub fn theme_color(self) -> &'static str {
+        match self {
+            ContextSegmentId::SystemPrompt | ContextSegmentId::UserMessages => "accent",
+            ContextSegmentId::InstructionFiles
+            | ContextSegmentId::AssistantMessages
+            | ContextSegmentId::ToolOutput
+            | ContextSegmentId::Free => "muted",
+            ContextSegmentId::Skills => "success",
+            ContextSegmentId::BuiltInTools | ContextSegmentId::ToolCalls | ContextSegmentId::Buffer => "warning",
+            ContextSegmentId::CustomTools | ContextSegmentId::AssistantThinking => "customMessageLabel",
+        }
+    }
+}
+
+/// One entry of the ordered context category list.
+///
+/// Reference: `ContextCategoryDescriptor` in
+/// `l/src/chrome/context-view-model.ts`; [`ContextSegmentId`] supplies the id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContextCategoryDescriptor {
+    /// Category id.
+    pub id: ContextSegmentId,
+    /// Row label.
+    pub label: &'static str,
+    /// Overview row label when the attribution weight differs.
+    pub overview_label: Option<&'static str>,
+    /// Listed in the overview but never opened.
+    pub openable: bool,
+}
+
+/// Context categories in display order.
+pub const CONTEXT_CATEGORIES: [ContextCategoryDescriptor; 10] = [
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::SystemPrompt,
+        label: "System Prompt",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::InstructionFiles,
+        label: "Instruction Files",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::Skills,
+        label: "Skills",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::BuiltInTools,
+        label: "Built-in Tools",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::CustomTools,
+        label: "Custom Tools",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::UserMessages,
+        label: "User / Developer Messages",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::AssistantMessages,
+        label: "Assistant Messages",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::AssistantThinking,
+        label: "Assistant Thinking",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::ToolCalls,
+        label: "Tool Calls",
+        overview_label: None,
+        openable: true,
+    },
+    ContextCategoryDescriptor {
+        id: ContextSegmentId::ToolOutput,
+        label: "Tool Output",
+        overview_label: None,
+        openable: true,
+    },
+];
+
+/// Descriptor of a category id.
+pub fn context_category_descriptor(id: ContextSegmentId) -> Option<&'static ContextCategoryDescriptor> {
+    CONTEXT_CATEGORIES.iter().find(|descriptor| descriptor.id == id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -822,6 +976,36 @@ mod tests {
         assert!(rows[0].contains(CONTEXT_CONTENT_GLYPH), "{}", rows[0]);
         assert!(rows[1].contains(CONTEXT_FREE_GLYPH), "{}", rows[1]);
         assert!(map.render(0).is_empty());
+    }
+
+    #[test]
+    fn levels_map_to_tone_and_theme_colour() {
+        assert_eq!(ContextUsageLevel::Normal.tone(), None);
+        assert_eq!(ContextUsageLevel::Warning.tone(), Some(Tone::Warning));
+        assert_eq!(ContextUsageLevel::Purple.tone(), Some(Tone::Warning));
+        assert_eq!(ContextUsageLevel::Error.tone(), Some(Tone::Error));
+        assert_eq!(ContextUsageLevel::Purple.theme_color(), "thinkingHigh");
+        assert_eq!(ContextUsageLevel::Normal.theme_color(), "statusLineContext");
+    }
+
+    #[test]
+    fn segment_presentation_matches_the_reference_table() {
+        assert_eq!(ContextSegmentId::ToolOutput.symbol_key(), "context.messages");
+        assert_eq!(ContextSegmentId::Buffer.symbol_key(), "context.buffer");
+        assert_eq!(ContextSegmentId::Buffer.theme_color(), "warning");
+        assert_eq!(ContextSegmentId::Free.theme_color(), "muted");
+        assert_eq!(ContextSegmentId::AssistantThinking.theme_color(), "customMessageLabel");
+        assert_eq!(ContextSegmentId::AssistantThinking.as_str(), "assistant-thinking");
+    }
+
+    #[test]
+    fn categories_keep_display_order_and_lookup_by_id() {
+        assert_eq!(CONTEXT_CATEGORIES.len(), 10);
+        assert_eq!(CONTEXT_CATEGORIES[0].label, "System Prompt");
+        assert_eq!(CONTEXT_CATEGORIES[9].label, "Tool Output");
+        let descriptor = context_category_descriptor(ContextSegmentId::Skills).expect("skills");
+        assert_eq!(descriptor.label, "Skills");
+        assert!(context_category_descriptor(ContextSegmentId::Free).is_none());
     }
 
     fn visible_rule_cells(row: &str) -> usize {

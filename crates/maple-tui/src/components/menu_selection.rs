@@ -1,4 +1,5 @@
 //! Searchable menu state, viewport windowing, and a renderable menu component.
+//! Reference: `l/src/components/menu-selection.ts`.
 //!
 //! This module ports `l/src/components/menu-selection.ts`: the `MenuSelection`
 //! state engine (filtering, selection, disabled-row navigation, confirmation)

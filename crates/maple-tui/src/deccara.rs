@@ -1,4 +1,5 @@
 //! DECSACE background-fill optimizer (port of `l/src/deccara.ts`).
+//! Reference: `l/src/deccara.ts`.
 //!
 //! Full-width rows padded with background-colored spaces are shortened and the
 //! padding is repainted with a single rectangular DECCARA sequence per run.

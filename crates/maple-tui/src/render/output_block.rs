@@ -1,4 +1,5 @@
 //! Bordered output container with a header, labelled sections, and an
+//! Reference: `l/src/render/output-block.ts`.
 //! optional collapsed state.
 //!
 //! [`render_output_block`] reproduces the TypeScript framing: rounded border,
@@ -6,6 +7,9 @@
 //! wrapped to the inner width, and footer facts that ride the bottom border
 //! when they fit whole. [`OutputBlock`] wraps the same layout in the
 //! [`Component`] contract with setters and a keyboard toggle.
+
+use std::collections::HashSet;
+use std::sync::{LazyLock, Mutex};
 
 use crate::component::Component;
 use crate::keys::Key;
@@ -121,6 +125,49 @@ pub fn output_block_content_width(
     let left = normalize_padding(content_padding_left);
     let right = normalize_padding(content_padding_right.or(content_padding_left));
     width.saturating_sub(2).saturating_sub(left + right).max(1)
+}
+
+// ── Framed block brand ───────────────────────────────────────────────────────
+
+/// Components that own their output frame, keyed by data address.
+///
+/// Reference: `l/src/render/output-block.ts` brands a component object with the
+/// `framedBlockComponent` `Symbol` and later tests any type-erased `Component`.
+/// Rust has no per-object property bag or trait upcasting, so the brand is an
+/// identity set: [`mark_framed_block_component`] records the component's data
+/// address and [`is_framed_block_component`] tests it. Mark the instance that is
+/// actually stored (typically a `Box<dyn Component>`); moving the value changes
+/// its address and drops the brand.
+static FRAMED_BLOCK_COMPONENTS: LazyLock<Mutex<HashSet<usize>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+fn component_address(component: &dyn Component) -> usize {
+    component as *const dyn Component as *const () as usize
+}
+
+/// Mark a component as owning its output frame.
+///
+/// Reference: `l/src/render/output-block.ts::markFramedBlockComponent`. The
+/// reference brands the object and returns it; the port records the stored
+/// instance's address and hands the same `Box` back, so the brand survives moving
+/// the box (its heap allocation does not move).
+pub fn mark_framed_block_component(component: Box<dyn Component>) -> Box<dyn Component> {
+    let address = component_address(&*component);
+    if let Ok(mut marked) = FRAMED_BLOCK_COMPONENTS.lock() {
+        marked.insert(address);
+    }
+    component
+}
+
+/// Return whether a component owns its output frame.
+///
+/// Reference: `l/src/render/output-block.ts::isFramedBlockComponent`.
+pub fn is_framed_block_component(component: &dyn Component) -> bool {
+    let address = component_address(component);
+    FRAMED_BLOCK_COMPONENTS
+        .lock()
+        .map(|marked| marked.contains(&address))
+        .unwrap_or(false)
 }
 
 /// Component wrapper caching the last rendered frame.
@@ -775,5 +822,25 @@ mod tests {
         let rows = render_output_block(&options, &theme());
         assert!(rows[0].starts_with("\x1b["));
         assert!(rows[0].ends_with("\x1b[49m"));
+    }
+
+    #[test]
+    fn framed_block_brand_is_detected_on_the_stored_component() {
+        struct Plain;
+        impl Component for Plain {
+            fn render(&mut self, _width: u16) -> Vec<String> {
+                vec!["plain".to_string()]
+            }
+        }
+
+        let unmarked: Box<dyn Component> = Box::new(Plain);
+        assert!(!is_framed_block_component(&*unmarked));
+
+        let marked = mark_framed_block_component(Box::new(Plain));
+        assert!(is_framed_block_component(&*marked));
+
+        // Moving the box keeps the heap allocation (and the brand) put.
+        let moved = marked;
+        assert!(is_framed_block_component(&*moved));
     }
 }

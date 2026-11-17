@@ -1,6 +1,9 @@
 //! Terminal backend contract plus the process and virtual implementations.
+//! Reference: `l/src/terminal.ts`.
 
 pub mod process;
+pub mod cursor_visibility;
+pub mod program_status;
 pub mod virt;
 
 use crate::keys::Key;
@@ -47,4 +50,16 @@ pub trait Terminal {
     fn clear_line(&mut self);
     fn clear_from_cursor(&mut self);
     fn clear_screen(&mut self);
+
+    /// Record rows evicted above the live viewport (backends with scrollback).
+    fn append_scrollback(&mut self, _rows: &[String]) {}
+
+    /// Record the complete live viewport painted by the latest frame.
+    fn set_viewport(&mut self, _rows: &[String]) {}
+
+    /// Place the hardware cursor at `(row, column)`, or hide it when `None`.
+    fn set_hardware_cursor(&mut self, _position: Option<(u16, u16)>) {}
+
+    /// Drop retained scrollback rows (destructive reset).
+    fn clear_scrollback(&mut self) {}
 }

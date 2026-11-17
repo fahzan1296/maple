@@ -1,4 +1,5 @@
 //! SIXEL passthrough helpers (port of `l/src/render/sixel.ts`).
+//! Reference: `l/src/render/sixel.ts`.
 //!
 //! Terminals that support SIXEL receive the raw control sequence unchanged;
 //! everywhere else the sequence is stripped by the sanitizer. Passthrough is

@@ -11,6 +11,9 @@
 
 use crate::component::Component;
 use crate::keys::Key;
+use crate::native::describe::{describe_child, node};
+use crate::native::node::{DescribeContext, NativeNode, NodeKind, Text as NodeText};
+use crate::native::overlay::overlay_card;
 use crate::style::{Color, Style};
 use crate::symbols::SymbolTheme;
 use crate::text_shape::{pad_to_width, truncate_to_width, visible_width, Ellipsis};
@@ -327,6 +330,13 @@ impl Component for PanelRows {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PanelDivider;
 
+impl PanelDivider {
+    /// The native form: a `rule` row (the reference's `describe`).
+    pub fn describe(&self) -> NativeNode {
+        node(NodeKind::Rule, Default::default(), Vec::new(), None)
+    }
+}
+
 impl Component for PanelDivider {
     fn render(&mut self, _width: u16) -> Vec<String> {
         Vec::new()
@@ -512,6 +522,30 @@ impl OverlayPanel {
             rows.extend(child.render(inner));
         }
         rows
+    }
+
+    /// The native form: a root `card` whose head is the title and whose role
+    /// is [`OverlayPanel::native_role`]; the terminal draws the frame.
+    ///
+    /// Reference: `OverlayPanel.describe` (`overlayCard` in the reference's
+    /// `native/overlay`). The reference memoizes the node by child identity;
+    /// this rebuilds per call and leaves identity checks to the reconciler.
+    /// Children that cannot describe themselves natively become `rows` nodes.
+    pub fn describe(&mut self, cx: &DescribeContext) -> NativeNode {
+        let dividers = self.dividers.clone();
+        let children = self
+            .children
+            .iter_mut()
+            .enumerate()
+            .filter(|(index, _)| !dividers.get(*index).copied().unwrap_or(false))
+            .map(|(_, child)| describe_child(child.as_mut(), cx))
+            .collect();
+        let head = if self.title.is_empty() {
+            None
+        } else {
+            Some(NodeText::Plain(self.title.clone()))
+        };
+        overlay_card(&self.role, head, children, None)
     }
 }
 
@@ -721,5 +755,30 @@ mod tests {
     fn title_collapses_whitespace() {
         let mut panel = OverlayPanel::new("  a\n\t b  ", "omp.overlay");
         assert_eq!(panel.title(), "a b");
+    }
+    #[test]
+    fn divider_describes_as_a_rule() {
+        assert_eq!(PanelDivider.describe().kind, NodeKind::Rule);
+    }
+
+    #[test]
+    fn panel_describes_a_root_card_over_its_children() {
+        let mut panel = OverlayPanel::new("Pick", "omp.overlay.picker");
+        let mut rows = PanelRows::new();
+        rows.set_lines(&["one".to_string()]);
+        panel.add_child(rows);
+        panel.add_divider();
+        let node = panel.describe(&DescribeContext::new(40));
+        assert_eq!(node.kind, NodeKind::Card);
+        assert_eq!(node.props.get_str("role"), Some("omp.overlay.picker"));
+        // The divider is border chrome, not a child node.
+        assert_eq!(node.children.len(), 1);
+    }
+
+    #[test]
+    fn untitled_panel_describes_without_a_head() {
+        let mut panel = OverlayPanel::new("", "omp.overlay");
+        let node = panel.describe(&DescribeContext::new(20));
+        assert_eq!(node.props.get("head"), None);
     }
 }
