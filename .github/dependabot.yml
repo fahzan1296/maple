@@ -10,6 +10,13 @@ updates:
     labels:
       - "dependencies"
       - "priority: low"
+    groups:
+      minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -20,3 +27,10 @@ updates:
     labels:
       - "dependencies"
       - "priority: low"
+    groups:
+      minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
