@@ -35,8 +35,8 @@ Target renames for the sweep; the ADR fixes the standard, the sweep applies it.
 
 | Old | New | Reason |
 |---|---|---|
-| `overlays/selector_more/` | `overlays/selector/` | no "extra selectors" folder; one concept |
-| `overlays/misc/` | `overlays/panels/` | `misc` names nothing |
+| `overlays/selector_more/` | `overlays/selector/` | merge into the existing selector group; no "extra selectors" folder |
+| `overlays/misc/` + `overlays/misc_more/` | `overlays/panels/` | `misc` names nothing; merge the extra set first |
 | `io_rx/` | `input_pipe/` | receives terminal input; not a channel detail |
 | `mux/` | `terminal_mux/` | spelled out |
 | `keymap/app_keybindings/` | `keymap/bindings/` | "app" is implied |
