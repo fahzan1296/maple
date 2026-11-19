@@ -115,6 +115,11 @@ reference source: maple links third-party crates.io crates as build
 dependencies, each attributed with its license in
 [`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES#runtime-dependencies).
 
+The target architecture is specified in
+[`docs/maple-system-architecture-spec-v2/`](docs/maple-system-architecture-spec-v2/README.md)
+(V2, 32 chapters + appendices). It is the normative design for the greenfield
+systems; the TUI in `crates/maple-tui/` is the reusable presentation asset.
+
 <!-- Project Status -->
 ### :bar_chart: Project Status
 
@@ -139,19 +144,22 @@ decision, 2026-11-15: no M0–M6 phase gates).
 ```
 .
 ├── PRD.md              # product requirements & design (v0.1)
+├── SPEC.md             # product specification
 ├── KONTRAK.md          # AI Operating Contract v7.0 (governance)
 ├── SECURITY.md         # trust boundaries & reporting
 ├── CHANGELOG.md        # Keep a Changelog
 ├── CONTRIBUTING.md     # how to contribute
 ├── CODE_OF_CONDUCT.md  # community expectations
-├── Cargo.toml          # pure-Rust crate
-├── src/                # implementation (CLI, session core, TUI)
-├── tests/              # integration tests
-├── assert/             # brand assets (banner, logo, app icon)
-├── assets/             # repository assets (mascot icon)
+├── Cargo.toml          # cargo workspace root
+├── crates/
+│   └── maple-tui/      # the reusable TUI crate (presentation layer)
 ├── docs/
 │   ├── README.md       # documentation index
-│   └── adr/            # architecture decision records
+│   ├── adr/            # architecture decision records
+│   └── maple-system-architecture-spec-v2/  # target architecture (V2)
+├── scripts/            # tooling helpers
+├── justfile            # just recipes (check, fmt, lint, test)
+├── assert/             # brand assets (banner, logo, app icon)
 └── .github/            # issue & PR templates
 ```
 

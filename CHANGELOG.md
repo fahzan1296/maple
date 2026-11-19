@@ -7,7 +7,15 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-
+- `docs/maple-system-architecture-spec-v2/` — the target architecture: 32
+  chapters, four appendices, `MANIFEST.json` and a legacy reference copy.
+- `docs/adr/0005-module-naming.md` — module naming standard: names state the
+  concept, split artifacts (`core1`, `state2`, `_more`, `_parts`, `misc`, `mux`,
+  `io_rx`) are forbidden, with the planned rename map.
+- Rust toolchain pinned to 1.99.1 (rustfmt + clippy), CI actions pinned to
+  commit SHAs, `clippy`/`rustfmt`/`taplo`/`typos`/`deny`/nextest configuration,
+ `justfile`, pre-commit hooks and `scripts/install-tools.sh`;
+  `cargo build --workspace` remains the gating CI check.
 - Repository initialized (`master`), `.gitignore` excluding reference material
   and local mesh/agent state.
 - `LICENSE` (MIT, clean-room) and `THIRD-PARTY-NOTICES` listing oh-my-pi and

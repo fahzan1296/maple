@@ -29,7 +29,9 @@ the name where a symbol lives or why.
 6. Renames land as their own mechanical pull request: file move, `mod`/`#[path]`
    update, re-export update, `cargo check`, no behavior change in the same diff.
 
-## Applied map (mechanical, no behavior change)
+## Planned map (mechanical, no behavior change)
+
+Target renames for the sweep; the ADR fixes the standard, the sweep applies it.
 
 | Old | New | Reason |
 |---|---|---|
