@@ -69,34 +69,34 @@ fn worktree_ctx(worktree_name: &str, branch: Option<&str>) -> SegmentContext {
 fn strips_the_scratch_root_and_shows_only_the_trailing_folder() {
 	let dir = "/tmp/omp-status-line-scratch-x";
 	let content = render(&ctx(dir, "/home/user"));
-	assert!(content.contains('🗑'), "{content:?}");
-	assert!(!content.contains('📁'), "{content:?}");
-	assert!(content.contains("omp-status-line-scratch-x"), "{content:?}");
-	assert!(!content.contains("/tmp"), "{content:?}");
+	assert!(content.contains('🗑'), "expected scratch icon in rendered path segment");
+	assert!(!content.contains('📁'), "did not expect folder icon for stripped scratch path");
+	assert!(content.contains("omp-status-line-scratch-x"), "expected trailing scratch folder name");
+	assert!(!content.contains("/tmp"), "did not expect scratch root prefix in rendered path");
 }
 
 #[test]
 fn keeps_nested_subpaths_visible_under_a_scratch_root() {
 	let dir = "/tmp/omp-status-line-scratch-nest/sub/deep";
 	let content = render(&ctx(dir, "/home/user"));
-	assert!(content.contains('🗑'), "{content:?}");
-	assert!(content.contains("omp-status-line-scratch-nest/sub/deep"), "{content:?}");
-	assert!(!content.contains("/tmp"), "{content:?}");
+	assert!(content.contains('🗑'), "expected scratch icon in rendered path segment");
+	assert!(content.contains("omp-status-line-scratch-nest/sub/deep"), "expected nested subpath under scratch root");
+	assert!(!content.contains("/tmp"), "did not expect scratch root prefix in rendered path");
 }
 
 #[test]
 fn keeps_the_folder_icon_for_scratch_paths_when_strip_work_prefix_is_disabled() {
 	let dir = "/tmp/omp-status-line-scratch-noprefix";
 	let content = render(&with_strip(ctx(dir, "/home/user"), false));
-	assert!(content.contains('📁'), "{content:?}");
-	assert!(!content.contains('🗑'), "{content:?}");
+	assert!(content.contains('📁'), "expected folder icon when strip_work_prefix is disabled");
+	assert!(!content.contains('🗑'), "did not expect scratch icon when strip_work_prefix is disabled");
 }
 
 #[test]
 fn keeps_the_folder_icon_for_paths_outside_any_scratch_root() {
 	let content = render(&ctx("/home/user/Projects/omp-status-line-real", "/home/user"));
-	assert!(content.contains('📁'), "{content:?}");
-	assert!(!content.contains('🗑'), "{content:?}");
+	assert!(content.contains('📁'), "expected folder icon for non-scratch path");
+	assert!(!content.contains('🗑'), "did not expect scratch icon for non-scratch path");
 }
 
 #[test]
