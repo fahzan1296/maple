@@ -8,7 +8,7 @@ description = "Terminal UI toolkit: differential renderer, component system, the
 publish = false
 
 [dependencies]
-crossterm = "0.28"
+crossterm = "0.29"
 unicode-width = "0.2"
 unicode-segmentation = "1"
 serde = { version = "1", features = ["derive"] }
