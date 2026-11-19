@@ -1,6 +1,7 @@
 //! Embedded built-in themes.
 //!
-//! Ported from `l/src/theme/{dark,light}.json` plus the `BUILTIN_THEMES` table
+//! Reference: `l/src/theme/dark.json`, `l/src/theme/light.json`, `l/src/theme/loader.ts` (`BUILTIN_THEMES`).
+//! Ported from the two JSON themes plus the built-in table;
 //! in `l/src/theme/loader.ts`. The upstream table also spreads `defaults.json`
 //! (100 extra themes); this port ships only `dark` and `light` — see
 //! [`builtin_theme_json`] for the gap.
@@ -261,6 +262,16 @@ pub fn get_builtin_themes() -> &'static HashMap<&'static str, ThemeJson> {
 	&BUILTIN_THEMES
 }
 
+
+/// Raw JSON of an embedded theme, for hosts that copy a built-in as a
+/// starting point.
+pub fn builtin_theme_source(name: &str) -> Option<&'static str> {
+	match name {
+		"dark" => Some(DARK_JSON),
+		"light" => Some(LIGHT_JSON),
+		_ => None,
+	}
+}
 #[cfg(test)]
 mod tests {
 	use super::*;

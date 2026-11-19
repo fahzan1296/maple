@@ -1,0 +1,639 @@
+## crates/maple-tui/src/apps/debug/raw_sse_buffer.rs  (2)
+  682: E0618: expected function, found `thinking::ThinkingModel`
+  682: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/apps/git/colors.rs  (4)
+  159: E0618: expected function, found `theme_class::Theme`
+  196: E0618: expected function, found `theme_class::Theme`
+  192: E0618: expected function, found `theme_class::Theme`
+  196: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/apps/git/git_tui.rs  (3)
+  256: E0560: struct `sidebar::GitCommitMessage` has no field named `subject`
+  322: E0609: no field `subject` on type `sidebar::GitCommitMessage`
+  256: E0308: mismatched types
+## crates/maple-tui/src/apps/live_visualizer.rs  (2)
+  374: E0618: expected function, found `thinking::ThinkingModel`
+  374: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/apps/setup_model_picker.rs  (2)
+  47: E0119: conflicting implementations of trait `Default` for type `setup_model_picker::tests::Ui`
+  49: E0119: conflicting implementations of trait `Default` for type `setup_model_picker::tests::Ui`
+## crates/maple-tui/src/chat/advisor_message.rs  (1)
+  499: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/assistant_message.rs  (1)
+  1122: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/background_tan_message.rs  (5)
+  155: E0618: expected function, found `theme_class::Theme`
+  173: E0599: no associated function or constant named `default` found for struct `messages::CustomMessage` in the current scope
+  192: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  203: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  220: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+## crates/maple-tui/src/chat/bash_execution.rs  (1)
+  331: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/cache_invalidation_marker.rs  (1)
+  165: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/chat_transcript_builder.rs  (1)
+  1004: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/collab_prompt_message.rs  (1)
+  94: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/compaction_summary_message.rs  (2)
+  557: E0618: expected function, found `theme_class::Theme`
+  623: E0599: no associated function or constant named `default` found for struct `messages::CustomMessage` in the current scope
+## crates/maple-tui/src/chat/custom_message.rs  (1)
+  209: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/eval_execution.rs  (1)
+  362: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/execution_shared.rs  (1)
+  551: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/image_loading.rs  (2)
+  380: E0618: expected function, found `image::Image`
+  380: E0618: expected function, found `image::Image`
+## crates/maple-tui/src/chat/late_diagnostics_message.rs  (1)
+  269: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/messages.rs  (2)
+  483: E0599: no associated function or constant named `default` found for struct `messages::CustomMessage` in the current scope
+  483: E0599: no associated function or constant named `default` found for struct `messages::CustomMessage` in the current scope
+## crates/maple-tui/src/chat/read_tool_group.rs  (1)
+  1194: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/recap_notice.rs  (1)
+  77: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/served_model_marker.rs  (1)
+  301: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/skill_message.rs  (1)
+  422: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/stripped_tool_calls_placeholder.rs  (1)
+  87: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/svg_figure.rs  (1)
+  448: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/todo_reminder.rs  (1)
+  361: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/tool_execution.rs  (1)
+  948: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/transcript_browser.rs  (2)
+  397: E0618: expected function, found `theme_class::Theme`
+  408: E0618: expected function, found `link_browser::LinkBrowserComponent`
+## crates/maple-tui/src/chat/transcript_outline.rs  (1)
+  456: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chat/transcript_presentation.rs  (19)
+  1042: E0618: expected function, found `theme_class::Theme`
+  1197: E0277: the trait bound `components::text::Text: transcript_presentation::CompactTranscriptBlock` is not satisfied
+  1197: E0277: the trait bound `components::text::Text: transcript_presentation::CompactTranscriptBlock` is not satisfied
+  1197: E0277: the trait bound `components::text::Text: transcript_presentation::CompactTranscriptBlock` is not satisfied
+  1198: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  858: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  1199: E0599: the method `set_expanded` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  858: E0599: the method `set_expanded` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  1200: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  858: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  1210: E0277: the trait bound `components::text::Text: transcript_presentation::CompactTranscriptBlock` is not satisfied
+  1210: E0277: the trait bound `components::text::Text: transcript_presentation::CompactTranscriptBlock` is not satisfied
+  1210: E0277: the trait bound `components::text::Text: transcript_presentation::CompactTranscriptBlock` is not satisfied
+  1211: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  858: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  1212: E0599: the method `refresh_transcript_presentation` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  858: E0599: the method `refresh_transcript_presentation` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  1214: E0599: the method `refresh_transcript_presentation` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  858: E0599: the method `refresh_transcript_presentation` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+## crates/maple-tui/src/chat/transcript_render_helpers.rs  (4)
+  545: E0618: expected function, found `theme_class::Theme`
+  687: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  704: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  708: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+## crates/maple-tui/src/chat/ttsr_notification.rs  (3)
+  338: E0618: expected function, found `theme_class::Theme`
+  382: E0277: the trait bound `std::string::String: Pattern` is not satisfied
+  382: E0277: the trait bound `std::string::String: Pattern` is not satisfied
+## crates/maple-tui/src/chat/user_message.rs  (1)
+  814: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/collab_qrcode.rs  (1)
+  173: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/dynamic_border.rs  (1)
+  177: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/form_theme.rs  (3)
+  103: E0599: no method named `len` found for struct `symbols::SymbolTheme` in the current scope
+  103: E0599: no method named `len` found for struct `symbols::SymbolTheme` in the current scope
+  56: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/overlay_box.rs  (6)
+  79: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  79: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  79: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  79: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  79: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  79: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+## crates/maple-tui/src/chrome/segment_track.rs  (5)
+  251: E0308: mismatched types
+  251: E0308: mismatched types
+  256: E0308: mismatched types
+  256: E0308: mismatched types
+  173: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/selector_helpers.rs  (1)
+  186: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/transcript_container.rs  (1)
+  2747: E0596: cannot borrow `*removed` as mutable, as `removed` is not declared as mutable
+## crates/maple-tui/src/chrome/transcript_notice.rs  (1)
+  207: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/chrome/transcript_status.rs  (11)
+  154: E0283: type annotations needed
+  154: E0283: type annotations needed
+  226: E0283: type annotations needed
+  226: E0283: type annotations needed
+  136: E0618: expected function, found `theme_class::Theme`
+  56: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  56: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  56: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  56: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  56: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  56: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+## crates/maple-tui/src/component.rs  (6)
+  10: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  10: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  10: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  10: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  10: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+  10: E0599: no method named `render` found for struct `transcript_status::TranscriptStatusBlock` in the current scope
+## crates/maple-tui/src/components/box.rs  (5)
+  512: E0593: closure is expected to take 1 argument, but it takes 0 arguments
+  512: E0593: closure is expected to take 1 argument, but it takes 0 arguments
+  533: E0593: closure is expected to take 1 argument, but it takes 0 arguments
+  533: E0593: closure is expected to take 1 argument, but it takes 0 arguments
+  431: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/components/composer/band.rs  (26)
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  89: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  87: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  89: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  89: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  87: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  89: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  91: E0308: mismatched types
+  91: E0308: mismatched types
+  106: E0308: mismatched types
+  106: E0308: mismatched types
+  112: E0308: mismatched types
+  112: E0308: mismatched types
+  135: E0308: mismatched types
+  135: E0308: mismatched types
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  70: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+## crates/maple-tui/src/components/composer/borderless.rs  (6)
+  56: E0308: mismatched types
+  56: E0308: mismatched types
+  64: E0308: mismatched types
+  64: E0308: mismatched types
+  65: E0308: mismatched types
+  65: E0308: mismatched types
+## crates/maple-tui/src/components/composer/box.rs  (44)
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  188: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  186: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  188: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  166: E0308: mismatched types
+  163: E0308: mismatched types
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  188: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  186: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  188: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  200: E0308: mismatched types
+  200: E0308: mismatched types
+  210: E0308: mismatched types
+  210: E0308: mismatched types
+  213: E0308: mismatched types
+  213: E0308: mismatched types
+  219: E0308: mismatched types
+  219: E0308: mismatched types
+  225: E0308: mismatched types
+  225: E0308: mismatched types
+  233: E0308: mismatched types
+  233: E0308: mismatched types
+  237: E0308: mismatched types
+  237: E0308: mismatched types
+  245: E0308: mismatched types
+  245: E0308: mismatched types
+  249: E0308: mismatched types
+  249: E0308: mismatched types
+  255: E0308: mismatched types
+  255: E0308: mismatched types
+  263: E0308: mismatched types
+  263: E0308: mismatched types
+  267: E0308: mismatched types
+  267: E0308: mismatched types
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  169: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+## crates/maple-tui/src/components/composer/claude.rs  (6)
+  60: E0308: mismatched types
+  60: E0308: mismatched types
+  72: E0308: mismatched types
+  72: E0308: mismatched types
+  82: E0308: mismatched types
+  82: E0308: mismatched types
+## crates/maple-tui/src/components/composer/field.rs  (18)
+  77: E0308: mismatched types
+  77: E0308: mismatched types
+  81: E0308: mismatched types
+  81: E0308: mismatched types
+  93: E0308: mismatched types
+  93: E0308: mismatched types
+  99: E0308: mismatched types
+  99: E0308: mismatched types
+  111: E0308: mismatched types
+  111: E0308: mismatched types
+  119: E0308: mismatched types
+  119: E0308: mismatched types
+  123: E0308: mismatched types
+  123: E0308: mismatched types
+  142: E0308: mismatched types
+  142: E0308: mismatched types
+  143: E0308: mismatched types
+  143: E0308: mismatched types
+## crates/maple-tui/src/components/composer/pi.rs  (8)
+  62: E0308: mismatched types
+  62: E0308: mismatched types
+  66: E0308: mismatched types
+  66: E0308: mismatched types
+  77: E0308: mismatched types
+  77: E0308: mismatched types
+  84: E0308: mismatched types
+  84: E0308: mismatched types
+## crates/maple-tui/src/components/composer/rail.rs  (22)
+  84: E0308: mismatched types
+  84: E0308: mismatched types
+  88: E0308: mismatched types
+  88: E0308: mismatched types
+  100: E0308: mismatched types
+  100: E0308: mismatched types
+  106: E0308: mismatched types
+  106: E0308: mismatched types
+  114: E0308: mismatched types
+  114: E0308: mismatched types
+  119: E0308: mismatched types
+  119: E0308: mismatched types
+  125: E0308: mismatched types
+  125: E0308: mismatched types
+  133: E0308: mismatched types
+  133: E0308: mismatched types
+  137: E0308: mismatched types
+  137: E0308: mismatched types
+  156: E0308: mismatched types
+  156: E0308: mismatched types
+  160: E0308: mismatched types
+  160: E0308: mismatched types
+## crates/maple-tui/src/components/composer/registry.rs  (9)
+  259: E0308: mismatched types
+  259: E0308: mismatched types
+  260: E0308: mismatched types
+  260: E0308: mismatched types
+  261: E0308: mismatched types
+  261: E0308: mismatched types
+  265: E0308: mismatched types
+  266: E0308: mismatched types
+  267: E0308: mismatched types
+## crates/maple-tui/src/components/composer/rule.rs  (28)
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  80: E0308: mismatched types
+  77: E0308: mismatched types
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  102: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  100: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  102: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  110: E0308: mismatched types
+  110: E0308: mismatched types
+  114: E0308: mismatched types
+  114: E0308: mismatched types
+  137: E0308: mismatched types
+  137: E0308: mismatched types
+  144: E0308: mismatched types
+  144: E0308: mismatched types
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  83: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  102: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  100: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+  102: E0618: expected function, found `std::option::Option<(&str, {integer})>`
+## crates/maple-tui/src/components/image.rs  (8)
+  1628: E0618: expected function, found `image::Image`
+  1767: E0618: expected function, found `image::Image`
+  1760: E0618: expected function, found `image::Image`
+  1767: E0618: expected function, found `image::Image`
+  1628: E0618: expected function, found `image::Image`
+  1779: E0618: expected function, found `image::Image`
+  1773: E0618: expected function, found `image::Image`
+  1779: E0618: expected function, found `image::Image`
+## crates/maple-tui/src/components/layout/layout_geometry.rs  (15)
+  620: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  620: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  622: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  622: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  626: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  626: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  639: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  639: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  644: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  644: E0593: function is expected to take 1 argument, but it takes 2 arguments
+  710: E0596: cannot borrow `unique` as mutable, as it is not declared as mutable
+  708: E0596: cannot borrow `unique` as mutable, as it is not declared as mutable
+  711: E0596: cannot borrow `unique` as mutable, as it is not declared as mutable
+  710: E0596: cannot borrow data in an index of `Vec<&dyn HeightConstrainedComponent>` as mutable
+  711: E0596: cannot borrow data in an index of `Vec<&dyn HeightConstrainedComponent>` as mutable
+## crates/maple-tui/src/components/menu_selection.rs  (1)
+  1051: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/components/text.rs  (6)
+  9: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  9: E0599: the method `set_expanded` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  9: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  9: E0599: the method `render` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  9: E0599: the method `refresh_transcript_presentation` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+  9: E0599: the method `refresh_transcript_presentation` exists for struct `transcript_presentation::PresentedBlock<components::text::Text>`, but its trait bounds were not satisfied
+## crates/maple-tui/src/html_form/dialog.rs  (12)
+  1132: E0503: cannot use `submitted` because it was mutably borrowed
+  1133: E0503: cannot use `submitted` because it was mutably borrowed
+  1132: E0503: cannot use `submitted` because it was mutably borrowed
+  1134: E0503: cannot use `submitted` because it was mutably borrowed
+  1132: E0503: cannot use `cancelled` because it was mutably borrowed
+  1133: E0503: cannot use `cancelled` because it was mutably borrowed
+  1132: E0503: cannot use `cancelled` because it was mutably borrowed
+  1134: E0503: cannot use `cancelled` because it was mutably borrowed
+  1188: E0502: cannot borrow `got` as immutable because it is also borrowed as mutable
+  1181: E0502: cannot borrow `got` as immutable because it is also borrowed as mutable
+  1181: E0502: cannot borrow `got` as immutable because it is also borrowed as mutable
+  1189: E0502: cannot borrow `got` as immutable because it is also borrowed as mutable
+## crates/maple-tui/src/keys.rs  (1)
+  11: E0599: no variant, associated function, or constant named `ArrowDown` found for enum `keys::Key` in the current scope
+## crates/maple-tui/src/motion_effects.rs  (21)
+  97: E0373: closure may outlive the current function, but it borrows `calls`, which is owned by the current function
+  97: E0373: closure may outlive the current function, but it borrows `calls`, which is owned by the current function
+  97: E0499: cannot borrow `calls` as mutable more than once at a time
+  98: E0499: cannot borrow `calls` as mutable more than once at a time
+  97: E0499: cannot borrow `calls` as mutable more than once at a time
+  98: E0499: cannot borrow `calls` as mutable more than once at a time
+  97: E0499: cannot borrow `calls` as mutable more than once at a time
+  98: E0373: closure may outlive the current function, but it borrows `calls`, which is owned by the current function
+  98: E0373: closure may outlive the current function, but it borrows `calls`, which is owned by the current function
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  97: E0502: cannot borrow `calls` as immutable because it is also borrowed as mutable
+## crates/maple-tui/src/native/backend.rs  (1)
+  1396: E0277: the trait bound `Comp: Default` is not satisfied
+## crates/maple-tui/src/native/node.rs  (6)
+  824: E0599: no method named `kind` found for struct `native::node::NativeNode` in the current scope
+  824: E0599: no method named `kind` found for struct `native::node::NativeNode` in the current scope
+  824: E0599: no method named `children` found for struct `native::node::NativeNode` in the current scope
+  824: E0599: no method named `children` found for struct `native::node::NativeNode` in the current scope
+  824: E0599: no method named `kind` found for struct `native::node::NativeNode` in the current scope
+  824: E0599: no method named `children` found for struct `native::node::NativeNode` in the current scope
+## crates/maple-tui/src/native/picker.rs  (1)
+  1484: E0063: missing fields `align` and `grow` in initializer of `native::picker::PickerColumn`
+## crates/maple-tui/src/native/tone.rs  (4)
+  342: E0283: type annotations needed
+  342: E0283: type annotations needed
+  366: E0283: type annotations needed
+  366: E0283: type annotations needed
+## crates/maple-tui/src/overlays/annotation_overlay.rs  (4)
+  1022: E0599: no variant, associated function, or constant named `Custom` found for enum `annotation_types::TextReviewSourceProvenance` in the current scope
+  1022: E0063: missing fields `cursor_offset`, `entry_index`, `id` and 4 other fields in initializer of `annotation_types::TextReviewSource`
+  1038: E0599: no variant, associated function, or constant named `Custom` found for enum `annotation_types::TextReviewSourceProvenance` in the current scope
+  1038: E0063: missing fields `cursor_offset`, `entry_index`, `id` and 4 other fields in initializer of `annotation_types::TextReviewSource`
+## crates/maple-tui/src/overlays/annotation_types.rs  (2)
+  93: E0599: no variant, associated function, or constant named `Custom` found for enum `annotation_types::TextReviewSourceProvenance` in the current scope
+  93: E0599: no variant, associated function, or constant named `Custom` found for enum `annotation_types::TextReviewSourceProvenance` in the current scope
+## crates/maple-tui/src/overlays/bordered_loader.rs  (1)
+  40: E0599: no method named `kind` found for struct `native::node::NativeNode` in the current scope
+## crates/maple-tui/src/overlays/btw_history_panel.rs  (6)
+  448: E0560: struct `btw_history::BtwHistoryRecord` has no field named `turns`
+  448: E0560: struct `btw_history::BtwHistoryTurn` has no field named `aborted`
+  452: E0560: struct `btw_history::BtwHistoryRecord` has no field named `cancelled`
+  454: E0560: struct `btw_history::BtwHistoryRecord` has no field named `asked_at`
+  455: E0560: struct `btw_history::BtwHistoryRecord` has no field named `completed_at`
+  456: E0560: struct `btw_history::BtwHistoryRecord` has no field named `consulted_tools`
+## crates/maple-tui/src/overlays/error_banner.rs  (3)
+  98: E0599: no method named `kind` found for struct `native::node::NativeNode` in the current scope
+  99: E0599: no method named `children` found for struct `native::node::NativeNode` in the current scope
+  105: E0599: no method named `children` found for struct `native::node::NativeNode` in the current scope
+## crates/maple-tui/src/overlays/extensions/mcp_runtime.rs  (1)
+  783: E0308: mismatched types
+## crates/maple-tui/src/overlays/hook_editor.rs  (2)
+  710: E0061: this function takes 3 arguments but 2 arguments were supplied
+  710: E0061: this function takes 3 arguments but 2 arguments were supplied
+## crates/maple-tui/src/overlays/hook_input.rs  (2)
+  443: E0061: this function takes 5 arguments but 4 arguments were supplied
+  443: E0061: this function takes 5 arguments but 4 arguments were supplied
+## crates/maple-tui/src/overlays/job_tree.rs  (2)
+  352: E0618: expected function, found `theme_class::Theme`
+  353: E0599: no associated function or constant named `default` found for struct `theme_class::Theme` in the current scope
+## crates/maple-tui/src/overlays/link_browser.rs  (4)
+  507: E0618: expected function, found `link_browser::LinkBrowserComponent`
+  631: E0618: expected function, found `link_browser::LinkBrowserComponent`
+  627: E0618: expected function, found `link_browser::LinkBrowserComponent`
+  631: E0618: expected function, found `link_browser::LinkBrowserComponent`
+## crates/maple-tui/src/overlays/logout_account_selector.rs  (3)
+  450: E0308: mismatched types
+  450: E0308: mismatched types
+  390: E0618: expected function, found `session_account_selector::SessionPinAccount`
+## crates/maple-tui/src/overlays/mcp_add_wizard.rs  (1)
+  2257: E0599: no variant, associated function, or constant named `ArrowDown` found for enum `keys::Key` in the current scope
+## crates/maple-tui/src/overlays/model_browser.rs  (3)
+  296: E0425: cannot find type `StaticModelBrowserSource` in this scope
+  3100: E0618: expected function, found `thinking::ThinkingModel`
+  3100: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/overlays/model_hub.rs  (7)
+  3731: E0425: cannot find type `StaticModelBrowserSource` in this scope
+  3737: E0422: cannot find struct, variant or union type `ModelSummary` in this scope
+  3737: E0433: cannot find type `ModelSummary` in this scope
+  4257: E0425: cannot find value `StaticModelBrowserSource` in this scope
+  4282: E0425: cannot find value `StaticModelBrowserSource` in this scope
+  3733: E0618: expected function, found `thinking::ThinkingModel`
+  3733: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/overlays/model_picker.rs  (3)
+  795: E0618: expected function, found `theme_class::Theme`
+  803: E0618: expected function, found `thinking::ThinkingModel`
+  803: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/overlays/move_overlay.rs  (1)
+  404: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/overlays/oauth_selector.rs  (1)
+  935: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/overlays/omfg_panel.rs  (1)
+  439: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/overlays/pause_screen.rs  (3)
+  568: E0618: expected function, found `theme_class::Theme`
+  697: E0600: cannot apply unary operator `!` to type `()`
+  699: E0600: cannot apply unary operator `!` to type `()`
+## crates/maple-tui/src/overlays/plan_review_overlay.rs  (1)
+  1691: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/overlays/plan_save_overlay.rs  (1)
+  236: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/overlays/queue_mode_selector.rs  (11)
+  355: E0521: borrowed data escapes outside of closure
+  358: E0521: borrowed data escapes outside of closure
+  358: E0521: borrowed data escapes outside of closure
+  369: E0373: closure may outlive the current function, but it borrows `cancelled`, which is owned by the current function
+  369: E0373: closure may outlive the current function, but it borrows `cancelled`, which is owned by the current function
+  369: E0502: cannot borrow `cancelled` as immutable because it is also borrowed as mutable
+  369: E0502: cannot borrow `cancelled` as immutable because it is also borrowed as mutable
+  369: E0502: cannot borrow `cancelled` as immutable because it is also borrowed as mutable
+  395: E0521: borrowed data escapes outside of closure
+  398: E0521: borrowed data escapes outside of closure
+  398: E0521: borrowed data escapes outside of closure
+## crates/maple-tui/src/overlays/reset_usage_selector.rs  (1)
+  734: E0618: expected function, found `session_account_selector::SessionPinAccount`
+## crates/maple-tui/src/overlays/rewind_selector.rs  (3)
+  1709: E0618: expected function, found `theme_class::Theme`
+  1821: E0515: cannot return value referencing local data `target.entry_id`
+  1821: E0515: cannot return value referencing local data `target.entry_id`
+## crates/maple-tui/src/overlays/session_account_selector.rs  (6)
+  377: E0618: expected function, found `session_account_selector::SessionPinAccount`
+  406: E0618: expected function, found `session_account_selector::SessionPinAccount`
+  391: E0618: expected function, found `session_account_selector::SessionPinAccount`
+  406: E0618: expected function, found `session_account_selector::SessionPinAccount`
+  456: E0308: mismatched types
+  456: E0308: mismatched types
+## crates/maple-tui/src/overlays/session_info_overlay.rs  (2)
+  818: E0277: the trait bound `native::node::Props: serde::Serialize` is not satisfied
+  818: E0277: the trait bound `native::node::Props: serde::Serialize` is not satisfied
+## crates/maple-tui/src/overlays/snapcompact_shape_preview.rs  (1)
+  447: E0615: attempted to take value of method `role` on type `native::node::Props`
+## crates/maple-tui/src/overlays/spotlight_sheet.rs  (1)
+  718: E0615: attempted to take value of method `role` on type `native::node::Props`
+## crates/maple-tui/src/overlays/stats_notice.rs  (2)
+  57: E0599: no method named `kind` found for struct `native::node::NativeNode` in the current scope
+  58: E0599: no method named `children` found for struct `native::node::NativeNode` in the current scope
+## crates/maple-tui/src/overlays/tree_selector.rs  (1)
+  649: E0615: attempted to take value of method `role` on type `native::node::Props`
+## crates/maple-tui/src/prompt/attachment_chips.rs  (7)
+  294: E0618: expected function, found `image::Image`
+  294: E0618: expected function, found `image::Image`
+  289: E0618: expected function, found `theme_class::Theme`
+  321: E0308: mismatched types
+  321: E0308: mismatched types
+  323: E0308: mismatched types
+  323: E0308: mismatched types
+## crates/maple-tui/src/prompt/composer_hints.rs  (3)
+  183: E0618: expected function, found `theme_class::Theme`
+  184: E0308: arguments to this function are incorrect
+  184: E0308: arguments to this function are incorrect
+## crates/maple-tui/src/prompt/custom_editor.rs  (8)
+  763: E0618: expected function, found `image::Image`
+  763: E0618: expected function, found `image::Image`
+  925: E0599: no method named `spelling_features` found for struct `custom_editor::CustomEditor` in the current scope
+  236: E0599: no method named `spelling_features` found for struct `custom_editor::CustomEditor` in the current scope
+  926: E0599: no method named `spelling_features` found for struct `custom_editor::CustomEditor` in the current scope
+  236: E0599: no method named `spelling_features` found for struct `custom_editor::CustomEditor` in the current scope
+  927: E0599: no method named `word_completion_method` found for struct `custom_editor::CustomEditor` in the current scope
+  236: E0599: no method named `word_completion_method` found for struct `custom_editor::CustomEditor` in the current scope
+## crates/maple-tui/src/prompt/github_ref_autocomplete.rs  (2)
+  137: E0308: mismatched types
+  137: E0308: mismatched types
+## crates/maple-tui/src/prompt/magic_keywords.rs  (1)
+  295: E0308: mismatched types
+## crates/maple-tui/src/prompt/queued_messages.rs  (5)
+  234: E0618: expected function, found `theme_class::Theme`
+  235: E0308: arguments to this function are incorrect
+  235: E0308: arguments to this function are incorrect
+  274: E0277: the trait bound `native::node::NativeNode: serde::Serialize` is not satisfied
+  274: E0277: the trait bound `native::node::NativeNode: serde::Serialize` is not satisfied
+## crates/maple-tui/src/prompt/tools_markdown.rs  (2)
+  132: E0716: temporary value dropped while borrowed
+  132: E0716: temporary value dropped while borrowed
+## crates/maple-tui/src/prompt/welcome.rs  (1)
+  800: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/render/file_list.rs  (1)
+  165: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/render/output_block.rs  (1)
+  647: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/render/tool_card.rs  (1)
+  1080: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/render/tree_list.rs  (1)
+  303: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/screen.rs  (2)
+  269: E0599: no method named `clear_output` found for struct `VirtualTerminal` in the current scope
+  280: E0599: no method named `clear_output` found for struct `VirtualTerminal` in the current scope
+## crates/maple-tui/src/setup/scenes/model.rs  (2)
+  592: E0618: expected function, found `thinking::ThinkingModel`
+  592: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/space_hold.rs  (2)
+  519: E0308: mismatched types
+  519: E0308: mismatched types
+## crates/maple-tui/src/symbols.rs  (2)
+  30: E0599: no method named `len` found for struct `symbols::SymbolTheme` in the current scope
+  30: E0599: no method named `len` found for struct `symbols::SymbolTheme` in the current scope
+## crates/maple-tui/src/terminal/virt.rs  (2)
+  7: E0599: no method named `clear_output` found for struct `VirtualTerminal` in the current scope
+  7: E0599: no method named `clear_output` found for struct `VirtualTerminal` in the current scope
+## crates/maple-tui/src/terminal_multiplexer.rs  (2)
+  78: E0106: missing lifetime specifier
+  78: E0106: missing lifetime specifier
+## crates/maple-tui/src/theme/active_symbols.rs  (2)
+  70: E0308: arguments to this function are incorrect
+  70: E0308: arguments to this function are incorrect
+## crates/maple-tui/src/theme/shimmer.rs  (2)
+  442: E0425: cannot find type `Mutex` in this scope
+  442: E0433: cannot find type `Mutex` in this scope
+## crates/maple-tui/src/theme/theme.rs  (1)
+  74: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/theme/theme_class.rs  (1)
+  691: E0599: no associated function or constant named `default` found for struct `theme_class::Theme` in the current scope
+## crates/maple-tui/src/theme/tui_adapters.rs  (1)
+  268: E0618: expected function, found `theme_class::Theme`
+## crates/maple-tui/src/thinking.rs  (8)
+  734: E0618: expected function, found `thinking::ThinkingModel`
+  800: E0618: expected function, found `thinking::ThinkingModel`
+  790: E0618: expected function, found `thinking::ThinkingModel`
+  800: E0618: expected function, found `thinking::ThinkingModel`
+  734: E0618: expected function, found `thinking::ThinkingModel`
+  811: E0618: expected function, found `thinking::ThinkingModel`
+  809: E0618: expected function, found `thinking::ThinkingModel`
+  811: E0618: expected function, found `thinking::ThinkingModel`
+## crates/maple-tui/src/tools/conflict_detect.rs  (5)
+  212: E0615: attempted to take value of method `start_line` on type `conflict_detect::ConflictEntry`
+  212: E0609: no field `separator_line` on type `conflict_detect::ConflictEntry`
+  212: E0609: no field `end_line` on type `conflict_detect::ConflictEntry`
+  213: E0609: no field `ours_lines` on type `conflict_detect::ConflictEntry`
+  214: E0609: no field `theirs_lines` on type `conflict_detect::ConflictEntry`
+## crates/maple-tui/src/tools/gh_format.rs  (2)
+  75: E0308: mismatched types
+  75: E0308: mismatched types
+## crates/maple-tui/src/tools/native_view.rs  (2)
+  1258: E0308: mismatched types
+  1258: E0308: mismatched types
+## crates/maple-tui/src/tools/resolve.rs  (6)
+  329: E0061: this function takes 0 arguments but 1 argument was supplied
+  329: E0061: this function takes 0 arguments but 1 argument was supplied
+  329: E0308: mismatched types
+  330: E0061: this function takes 0 arguments but 1 argument was supplied
+  330: E0061: this function takes 0 arguments but 1 argument was supplied
+  330: E0308: mismatched types
+## crates/maple-tui/src/tools/streaming_output.rs  (2)
+  2101: E0282: type annotations needed
+  2098: E0282: type annotations needed
+## crates/maple-tui/src/tools/subprocess.rs  (2)
+  81: E0308: mismatched types
+  80: E0308: mismatched types

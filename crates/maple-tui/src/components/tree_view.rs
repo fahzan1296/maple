@@ -1,4 +1,5 @@
 //! Keyed, expandable tree with selection, search, and a rendered gutter.
+//! Reference: `l/src/components/tree-view.ts`.
 
 use std::collections::{HashMap, HashSet};
 

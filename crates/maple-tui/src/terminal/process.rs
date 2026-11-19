@@ -1,9 +1,13 @@
 //! Real terminal backend over the process standard streams.
+//! Reference: `l/src/terminal.ts`.
 
-use super::{TtyEvent, Terminal};
+use super::program_status::{ProgramStatusAction, ProgramStatusProbe};
+use super::{CursorVisibilityTracker, TtyEvent, Terminal};
+use crate::stdin_buffer::{StdinBuffer, StdinBufferEvent};
+use crate::terminal_capabilities::ProcessEnv;
 use crate::keys::from_crossterm;
 use crate::mouse::from_crossterm as mouse_from_crossterm;
-use crossterm::cursor::{Hide, MoveDown, MoveUp, Show};
+use crossterm::cursor::{Hide, MoveDown, MoveTo, MoveUp, Show};
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyboardEnhancementFlags,
     PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
@@ -23,9 +27,12 @@ use std::time::Duration;
 pub struct ProcessTerminal {
     receiver: Receiver<TtyEvent>,
     sender: Sender<TtyEvent>,
+    started: bool,
+    program_status: ProgramStatusProbe,
+    stdin_buffer: StdinBuffer,
     stop: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
-    started: bool,
+    cursor_tracker: CursorVisibilityTracker,
 }
 
 impl Default for ProcessTerminal {
@@ -43,7 +50,49 @@ impl ProcessTerminal {
             stop: Arc::new(AtomicBool::new(false)),
             worker: None,
             started: false,
+            program_status: ProgramStatusProbe::default(),
+            stdin_buffer: StdinBuffer::default(),
+            cursor_tracker: CursorVisibilityTracker::new(),
         }
+    }
+
+    /// Subscribe to OSC 7501 program-status verdicts across terminal restarts.
+    pub fn on_program_status_support(&mut self, callback: Box<dyn Fn(bool)>) -> usize {
+        self.program_status.subscribe(callback)
+    }
+
+    /// Drop a program-status subscription.
+    pub fn unsubscribe_program_status_support(&mut self, id: usize) {
+        self.program_status.unsubscribe(id)
+    }
+
+    /// The last program-status verdict, if any.
+    pub fn program_status_support(&self) -> Option<bool> {
+        self.program_status.result()
+    }
+
+    /// Drive the program-status probe directly: the raw-stdin seam that needs
+    /// no PTY. `begin` returns the query action, `feed_raw_stdin` consumes
+    /// bytes, `stop` invalidates support.
+    pub fn program_status_probe_mut(&mut self) -> &mut ProgramStatusProbe {
+        &mut self.program_status
+    }
+
+    /// Feed one raw stdin read through the stdin buffer and the program-status
+    /// probe; returns the completed input events.
+    pub fn feed_raw_stdin(&mut self, data: &str) -> Vec<StdinBufferEvent> {
+        let events = self.stdin_buffer.process(data);
+        let mut forwarded = Vec::with_capacity(events.len());
+        for event in events {
+            if let StdinBufferEvent::Data(sequence) = &event {
+                if self.program_status.consumes_sequence(sequence) {
+                    self.program_status.feed(sequence);
+                    continue;
+                }
+            }
+            forwarded.push(event);
+        }
+        forwarded
     }
 
     fn spawn_worker(&mut self) {
@@ -97,6 +146,11 @@ impl Terminal for ProcessTerminal {
         ));
         out.flush()?;
         self.started = true;
+        for action in self.program_status.begin(&ProcessEnv) {
+            match action {
+                ProgramStatusAction::Write(data) => self.write(&data),
+            }
+        }
         self.spawn_worker();
         Ok(())
     }
@@ -106,6 +160,8 @@ impl Terminal for ProcessTerminal {
             return Ok(());
         }
         self.started = false;
+        let _ = self.program_status.stop();
+        self.stdin_buffer.clear();
         self.stop.store(true, Ordering::Relaxed);
         let mut out = io::stdout();
         let _ = out.execute(PopKeyboardEnhancementFlags);
@@ -125,6 +181,7 @@ impl Terminal for ProcessTerminal {
         let mut out = io::stdout();
         let _ = out.write_all(data.as_bytes());
         let _ = out.flush();
+        self.cursor_tracker.track_write(data);
     }
 
     fn event(&mut self, timeout: Duration) -> Option<TtyEvent> {
@@ -153,13 +210,35 @@ impl Terminal for ProcessTerminal {
         let _ = out.flush();
     }
 
-    fn hide_cursor(&mut self, _force: bool) {
+    fn set_hardware_cursor(&mut self, position: Option<(u16, u16)>) {
+        let mut out = io::stdout();
+        match position {
+            Some((row, column)) => {
+                let _ = out.execute(MoveTo(column, row));
+                let _ = out.execute(Show);
+            }
+            None => {
+                let _ = out.execute(Hide);
+            }
+        }
+        let _ = out.flush();
+    }
+
+    fn hide_cursor(&mut self, force: bool) {
+        if !self.cursor_tracker.should_hide(force) {
+            return;
+        }
+        self.cursor_tracker.record_hide();
         let mut out = io::stdout();
         let _ = out.execute(Hide);
         let _ = out.flush();
     }
 
-    fn show_cursor(&mut self, _force: bool) {
+    fn show_cursor(&mut self, force: bool) {
+        if !self.cursor_tracker.should_show(force) {
+            return;
+        }
+        self.cursor_tracker.record_show();
         let mut out = io::stdout();
         let _ = out.execute(Show);
         let _ = out.flush();

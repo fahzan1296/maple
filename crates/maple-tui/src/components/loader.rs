@@ -1,4 +1,5 @@
 //! Animated loading indicator.
+//! Reference: `l/src/components/loader.ts`.
 
 use crate::component::Component;
 use crate::spinner_clock::SpinnerClock;

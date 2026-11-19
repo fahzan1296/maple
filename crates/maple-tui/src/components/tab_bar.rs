@@ -1,4 +1,5 @@
 //! Horizontal tab bar with keyboard and pointer navigation.
+//! Reference: `l/src/components/tab-bar.ts`.
 //!
 //! Ports `l/src/components/tab-bar.ts`: a label prefix, ` id ` -wrapped tab
 //! buttons, a cycle hint, collapse to `short` labels when the bar overflows,

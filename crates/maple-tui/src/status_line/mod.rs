@@ -1,4 +1,5 @@
 //! Status line: segment catalog, renderers, separators, and the bar component.
+//! Reference: `l/src/status-line/index.ts`.
 //!
 //! The module mirrors `l/src/status-line/`:
 //!
@@ -15,6 +16,14 @@ pub mod schema;
 pub mod segments;
 pub mod separators;
 pub mod component;
+pub mod context_usage;
+pub mod footer;
+pub mod git_utils;
+pub mod host;
+pub mod prompt_cache;
+pub mod presets;
+pub mod startup;
+
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -169,7 +178,7 @@ impl FallbackTheme {
             "icon.advisor" => "👁",
             "icon.advisorClosed" => "🙈",
             "icon.time" => "⏱",
-            "icon.omp" => "π",
+            "icon.maple" => "π",
             "icon.ghost" => "👻",
             "icon.agents" => "👥",
             "icon.job" => "⚙",

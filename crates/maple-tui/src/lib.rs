@@ -1,13 +1,15 @@
 //! # maple-tui
+//! Reference: `l/src/index.ts`.
 //!
 //! Terminal user-interface toolkit: a component model with differential
 //! rendering, ANSI-aware text shaping, themes, and terminal backends.
 //!
-//! Clean-room Rust implementation inspired by `@oh-my-pi/pi-tui` behavior.
-//! No TypeScript source is copied; contracts and wire formats are reproduced.
+//! Clean-room Rust implementation of the `l/` reference tree. No TypeScript
+//! source is copied; contracts and wire formats are reproduced.
 
 mod ansi_scan;
 pub mod active_terminal;
+pub mod app_keybindings;
 
 pub mod components;
 
@@ -18,11 +20,13 @@ pub mod debug_server;
 pub mod deccara;
 pub mod desktop_notify;
 pub mod frame_rate;
+pub mod render_backpressure;
 pub mod keybindings;
 pub mod keys;
 pub mod loop_watchdog;
 pub mod mouse;
 pub mod mouse_sgr;
+pub mod mouse_tracking;
 pub mod multiplexers;
 pub mod screen;
 pub mod style;
@@ -35,6 +39,7 @@ pub mod windows_altgr;
 
 pub mod trigger;
 pub mod tui;
+pub mod start_listener;
 pub mod windows_input;
 pub mod fuzzy;
 pub mod autocomplete;
@@ -44,20 +49,55 @@ pub mod native;
 pub mod render;
 pub mod status_line;
 pub mod theme;
+pub mod conpty_write;
 pub mod glyph_protocol;
 pub mod tools;
 pub mod kitty_graphics;
 pub mod latex_to_unicode;
+pub mod latex_block;
 pub mod terminal_capabilities;
+pub mod terminal_multiplexer;
+pub mod tmux;
+pub mod apps;
+pub mod charts;
+pub mod chat;
+pub mod editor_component;
+pub mod hotkeys_markdown;
+pub mod html_form;
+pub mod key_hint_format;
+pub mod keybinding_matchers;
+pub mod kill_ring;
+pub mod motion_effects;
+pub mod overlays;
+pub mod prompt;
+pub mod setup;
+pub mod space_hold;
+pub mod stdin_buffer;
+pub mod thinking;
+pub mod vim;
+pub mod utils;
 
+/// Look up a maple-branded environment variable, falling back to the legacy
+/// `PI_`-prefixed name so existing deployments and dotfiles keep working.
+///
+/// `env_lookup("MAPLE_TUI_THEMES_DIR")` therefore reads `MAPLE_TUI_THEMES_DIR`
+/// first and `PI_TUI_THEMES_DIR` second.
+pub fn env_lookup(name: &str) -> Option<std::ffi::OsString> {
+	if let Some(value) = std::env::var_os(name) {
+		return Some(value);
+	}
+	let legacy = name.replacen("MAPLE_", "PI_", 1);
+	if legacy != name {
+		return std::env::var_os(legacy);
+	}
+	None
+}
 
-
-
+pub use ansi_scan::{coalesce_adjacent_sgr, strip_ansi};
 
 
 
 pub use component::Component;
-pub use ansi_scan::strip_ansi;
 pub use keys::Key;
 pub use terminal::{process::ProcessTerminal, virt::VirtualTerminal, Terminal, TtyEvent};
 pub use text_shape::{wrap_text_with_ansi, Ellipsis};

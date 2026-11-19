@@ -1,4 +1,5 @@
 //! Determinate and indeterminate progress bar.
+//! Reference: `l/src/components/progress-bar.ts`.
 
 use crate::component::Component;
 use crate::style::Style;

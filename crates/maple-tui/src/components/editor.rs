@@ -1,4 +1,5 @@
 //! Multi-line text editor with wrapping, scrolling, and autocomplete.
+//! Reference: `l/src/components/editor.ts`.
 //!
 //! Bounded clean-room port of the upstream `Editor`: plain buffer editing,
 //! word motion matching [`crate::components::input`], single-level undo, and a
@@ -10,6 +11,101 @@ use crate::keys::Key;
 use crate::style::{Color, Style};
 use crate::symbols::{LineSymbols, SymbolTheme};
 use crate::text_shape::{pad_to_width, truncate_to_width, visible_width, wrap_text_with_ansi, Ellipsis};
+
+// Re-export TS-named composer types for editor API parity.
+pub use crate::components::composer::types::{EditorBorderStyle, EditorTopBorder};
+
+/// The TSP root an `Editor::describe_layout` hook would build around the `editor` node.
+///
+/// Port of `l/src/components/editor.ts::NativeEditorLayout` (type shape; runtime TSP tree
+/// not materialized by this module).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeEditorLayout {
+	pub role: String,
+	pub tone: Option<String>,
+	pub caret: String,
+}
+
+/// A synchronous replacement immediately before the editor cursor.
+///
+/// Port of `l/src/components/editor.ts::EditorInlineReplacement`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditorInlineReplacement {
+	/// UTF-16 code units to remove immediately before the cursor.
+	pub replace_len: usize,
+	/// Literal text inserted where the removed suffix started.
+	pub insert: String,
+}
+
+/// Replacement candidates and the current-line span they replace.
+///
+/// Port of `l/src/components/editor.ts::EditorWordReplacements`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditorWordReplacements {
+	pub line: usize,
+	pub start_col: usize,
+	pub end_col: usize,
+	pub items: Vec<String>,
+}
+
+/// Source location for one visual text segment passed to `decorate_text`.
+///
+/// Port of `l/src/components/editor.ts::EditorTextDecorationContext`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditorTextDecorationContext {
+	pub line: usize,
+	pub start_col: usize,
+	pub end_col: usize,
+}
+
+/// Optional prose assistance kept separate from command/file autocomplete.
+///
+/// Port of `l/src/components/editor.ts::EditorTextAssistProvider`.
+/// Async TS methods are represented as synchronous hooks here (no async runtime dependency).
+pub trait EditorTextAssistProvider {
+	/// Return ghost-text suffix for the partial word at the cursor, or `None`.
+	fn get_word_completion(&self, _lines: &[String], _cursor_line: usize, _cursor_col: usize) -> Option<String> {
+		None
+	}
+	/// Report acceptance/typing-past feedback for a shown suggestion.
+	fn word_completion_feedback(
+		&self,
+		_lines: &[String],
+		_cursor_line: usize,
+		_cursor_col: usize,
+		_suggestion: &str,
+		_accepted: bool,
+	) {
+		let _ = _suggestion;
+	}
+	/// Return a correction after one single-character insertion, or `None`.
+	fn try_autocorrect(
+		&self,
+		_lines: &[String],
+		_cursor_line: usize,
+		_cursor_col: usize,
+	) -> Option<EditorInlineReplacement> {
+		None
+	}
+	/// Return replacement candidates for the misspelled word at the cursor.
+	fn get_word_replacements(
+		&self,
+		_lines: &[String],
+		_cursor_line: usize,
+		_cursor_col: usize,
+	) -> Option<EditorWordReplacements> {
+		None
+	}
+}
+
+/// What the paste transport knew about the input burst before the editor inserts the payload.
+///
+/// Port of `l/src/components/editor.ts::PasteOptions`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PasteOptions {
+	/// A submit keypress arrived in the same input burst and will be dispatched right after the paste.
+	pub submit_after_paste: bool,
+}
 
 /// Marker emitted immediately before the cursor cell, matching the upstream
 /// `CURSOR_MARKER` (`"\x1b_pi:c\x07"`). `component.rs` does not define the
@@ -666,37 +762,38 @@ impl Editor {
         self.insert_text("\t");
     }
 
-    fn handle_key(&mut self, key: &Key) {
-        match key {
-            Key::Char(character) | Key::Shift(character) => {
-                self.insert_text(character.to_string().as_str());
-            }
-            Key::Paste(text) => self.insert_text(text),
-            Key::Enter => self.submit(),
-            Key::Backspace | Key::Ctrl('h') => self.backspace(),
-            Key::Delete => self.delete_forward(),
-            Key::Left => self.move_left(),
-            Key::Right => self.move_right(),
-            Key::Up => self.move_up(),
-            Key::Down => self.move_down(),
-            Key::Home | Key::Ctrl('a') => self.move_home(),
-            Key::End | Key::Ctrl('e') => self.move_end(),
-            Key::CtrlLeft => self.move_word_left(),
-            Key::CtrlRight => self.move_word_right(),
-            Key::Tab => self.handle_tab(),
-            Key::Esc => {
-                if self.on_escape.is_some() {
-                    let text = self.get_text();
-                    if let Some(callback) = self.on_escape.as_mut() {
-                        callback(&text);
-                    }
-                }
-            }
-            Key::Shift('\r') | Key::Ctrl('\r') | Key::Alt('\r') => self.insert_text("\n"),
-            Key::Ctrl('z') => self.undo(),
-            _ => {}
-        }
-    }
+	fn handle_key(&mut self, key: &Key) {
+		match key {
+			// Modified Enter inserts a newline; must precede generic Shift/Char handling.
+			Key::Alt('\r') => self.insert_text("\n"),
+			Key::Char(character) | Key::Shift(character) => {
+				self.insert_text(character.to_string().as_str());
+			}
+			Key::Paste(text) => self.insert_text(text),
+			Key::Enter => self.submit(),
+			Key::Backspace | Key::Ctrl('h') => self.backspace(),
+			Key::Delete => self.delete_forward(),
+			Key::Left => self.move_left(),
+			Key::Right => self.move_right(),
+			Key::Up => self.move_up(),
+			Key::Down => self.move_down(),
+			Key::Home | Key::Ctrl('a') => self.move_home(),
+			Key::End | Key::Ctrl('e') => self.move_end(),
+			Key::CtrlLeft => self.move_word_left(),
+			Key::CtrlRight => self.move_word_right(),
+			Key::Tab => self.handle_tab(),
+			Key::Esc => {
+				if self.on_escape.is_some() {
+					let text = self.get_text();
+					if let Some(callback) = self.on_escape.as_mut() {
+						callback(&text);
+					}
+				}
+			}
+			Key::Ctrl('z') => self.undo(),
+			_ => {}
+		}
+	}
 
     fn cursor_content(&self, item: &VisualLine, cursor_col: usize) -> String {
         let offset = cursor_col.saturating_sub(item.start);

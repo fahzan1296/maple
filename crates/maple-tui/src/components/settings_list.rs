@@ -1,4 +1,5 @@
 //! Settings panel with value cycling, section headings, and type-to-filter.
+//! Reference: `l/src/components/settings-list.ts`.
 //!
 //! Ports `l/src/components/settings-list.ts`. Rows carry a label, optional
 //! description/warning, a current value, and an optional `values` cycle;

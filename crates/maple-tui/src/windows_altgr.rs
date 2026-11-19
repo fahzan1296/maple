@@ -1,4 +1,5 @@
 //! Recover AltGr text that Windows console hosts drop under the kitty keyboard
+//! Reference: `l/src/windows-altgr.ts`.
 //! protocol (port of `l/src/windows-altgr.ts`).
 //!
 //! Pure translation logic is platform-independent and unit-tested with an

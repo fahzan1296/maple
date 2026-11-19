@@ -1,4 +1,5 @@
 //! LaTeX math → Unicode/ANSI conversion.
+//! Reference: `l/src/latex-to-unicode.ts`.
 //!
 //! Terminals cannot lay out real math, but a surprising amount of LaTeX maps
 //! cleanly onto Unicode: superscripts/subscripts (`x² xᵢ`), Greek (`α β`), big
@@ -3074,6 +3075,21 @@ pub fn render_math_in_text(text: &str) -> String {
         i += 1;
     }
     render_bare_math_in_text(&out)
+}
+
+/// Render the math span opening at byte offset `at` in `text`, returning the
+/// Unicode replacement and the byte offset just past the closing delimiter.
+/// `None` when no span opens there (literal `$`, escaped delimiter, currency).
+pub fn render_math_at(text: &str, at: usize) -> Option<(String, usize)> {
+    let chars: Vec<char> = text.chars().collect();
+    let char_at = text[..at].chars().count();
+    let span = math_span_at(&chars, char_at, char_at)?;
+    let end = text
+        .char_indices()
+        .nth(span.end)
+        .map(|(byte, _)| byte)
+        .unwrap_or(text.len());
+    Some((collapse_newlines(&latex_to_unicode(&span.body)), end))
 }
 
 #[cfg(test)]

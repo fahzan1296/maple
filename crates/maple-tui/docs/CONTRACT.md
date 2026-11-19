@@ -1,6 +1,6 @@
 # maple-tui implementation contract
 
-Clean-room Rust port of `@oh-my-pi/pi-tui` v18.20.2 (`l/`). All new modules live
+Clean-room Rust port of `maple-tui` v18.20.2 (`l/`). All new modules live
 under `crates/maple-tui/src/`. Do **not** edit `Cargo.toml`, `src/lib.rs`,
 `src/components/mod.rs`, `src/terminal/**`, or another agent's files: list your
 new modules in the task output and the integrator wires them.

@@ -1,4 +1,5 @@
 //! Frame sequencing for animated loaders.
+//! Reference: `l/src/spinner-clock.ts`.
 
 use std::time::{Duration, Instant};
 

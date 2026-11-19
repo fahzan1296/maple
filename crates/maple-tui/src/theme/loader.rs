@@ -4,8 +4,10 @@
 //!
 //! # Divergences
 //!
-//! - The custom-theme directory is `PI_TUI_THEMES_DIR` or `~/.pi/tui/themes`,
-//!   not upstream's `~/.omp/agent/themes` (no `dirs` crate is available).
+//! - The custom-theme directory is `MAPLE_TUI_THEMES_DIR` or
+//!   `~/.maple/tui/themes` (the legacy `~/.pi/tui/themes` is still honoured
+//!   when only it exists), not upstream's `~/.maple/agent/themes` (no `dirs`
+//!   crate is available).
 //! - [`load_theme_json`] and [`load_theme_json_sync`] are the same synchronous
 //!   operation; this port has no async runtime.
 //! - JSON parse errors surface `serde_json`'s message instead of JavaScript's
@@ -67,17 +69,30 @@ pub struct ThemeInfo {
 	pub path: Option<PathBuf>,
 }
 
-/// The custom-theme directory: `$PI_TUI_THEMES_DIR` when set, else
-/// `~/.pi/tui/themes`.
+/// The custom-theme directory: `$MAPLE_TUI_THEMES_DIR` when set, else
+/// `~/.maple/tui/themes`, falling back to the legacy `~/.pi/tui/themes` when
+/// only that directory exists.
 pub fn get_custom_themes_dir() -> PathBuf {
-	if let Some(dir) = std::env::var_os("PI_TUI_THEMES_DIR") {
+	if let Some(dir) = crate::env_lookup("MAPLE_TUI_THEMES_DIR") {
 		if !dir.is_empty() {
 			return PathBuf::from(dir);
 		}
 	}
+	let maple_dir = themes_dir_under_home(".maple/tui/themes");
+	if !maple_dir.exists() {
+		let legacy_dir = themes_dir_under_home(".pi/tui/themes");
+		if legacy_dir.exists() {
+			return legacy_dir;
+		}
+	}
+	maple_dir
+}
+
+/// `$HOME`-relative custom-theme directory for `leaf`.
+fn themes_dir_under_home(leaf: &str) -> PathBuf {
 	match std::env::var_os("HOME") {
-		Some(home) if !home.is_empty() => PathBuf::from(home).join(".pi/tui/themes"),
-		_ => PathBuf::from(".pi/tui/themes"),
+		Some(home) if !home.is_empty() => PathBuf::from(home).join(leaf),
+		_ => PathBuf::from(leaf),
 	}
 }
 
@@ -501,8 +516,8 @@ mod tests {
 	#[test]
 	fn custom_themes_dir_prefers_env() {
 		// SAFETY: tests run single-threaded for this process-local env probe.
-		std::env::set_var("PI_TUI_THEMES_DIR", "/tmp/maple-themes-test");
+		std::env::set_var("MAPLE_TUI_THEMES_DIR", "/tmp/maple-themes-test");
 		assert_eq!(get_custom_themes_dir(), PathBuf::from("/tmp/maple-themes-test"));
-		std::env::remove_var("PI_TUI_THEMES_DIR");
+		std::env::remove_var("MAPLE_TUI_THEMES_DIR");
 	}
 }

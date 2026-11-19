@@ -1,4 +1,5 @@
 //! Debug socket (port of `l/src/debug-server.ts`).
+//! Reference: `l/src/debug-server.ts`.
 //!
 //! `OMP_TUI_DEBUG=<socket path>` starts a line-delimited NDJSON server. Ops:
 //! `text`, `info`, `values`, `keys`, `quit`. Unknown ops return

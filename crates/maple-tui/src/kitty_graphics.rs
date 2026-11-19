@@ -1,4 +1,5 @@
 //! Kitty graphics: Unicode placeholder placement (`U=1` + U+10EEEE), with
+//! Reference: `l/src/kitty-graphics.ts`.
 //! runtime feature state and env overrides.
 //!
 //! Unicode placeholders let a transmitted image be displayed by writing ordinary
@@ -91,20 +92,20 @@ pub fn set_kitty_graphics(features: KittyGraphicsFeatures) {
 /// Kitty, Ghostty, Otty, Monstar, Rio and Tern advertise placeholder support
 /// directly. A multiplexer cannot use cursor-positioned placements because the
 /// outer terminal does not know pane scroll/reflow state. An explicit
-/// `PI_FORCE_IMAGE_PROTOCOL=kitty` opts into placeholders under any multiplexer —
+/// `MAPLE_FORCE_IMAGE_PROTOCOL=kitty` opts into placeholders under any multiplexer —
 /// matching `timg -pk`. Automatic fallback stays off inside multiplexers whose
 /// pane marker does not prove that a Kitty renderer is enabled (Herdr's is
 /// experimental).
 ///
-/// `PI_NO_KITTY_PLACEHOLDERS=1` and `PI_KITTY_PLACEHOLDERS=0` remain hard
-/// opt-outs; `PI_KITTY_PLACEHOLDERS=1` explicitly opts in anywhere else.
+/// `MAPLE_NO_KITTY_PLACEHOLDERS=1` and `MAPLE_KITTY_PLACEHOLDERS=0` remain hard
+/// opt-outs; `MAPLE_KITTY_PLACEHOLDERS=1` explicitly opts in anywhere else.
 pub fn detect_kitty_unicode_placeholders_support(terminal_id: TerminalId, env: &impl EnvReader) -> bool {
 	let normalized = |value: Option<String>| value.map(|value| value.trim().to_ascii_lowercase()).unwrap_or_default();
-	let off_raw = normalized(env.get("PI_NO_KITTY_PLACEHOLDERS"));
+	let off_raw = normalized(env.get("MAPLE_NO_KITTY_PLACEHOLDERS"));
 	if matches!(off_raw.as_str(), "1" | "true" | "on" | "yes" | "y") {
 		return false;
 	}
-	let force = normalized(env.get("PI_KITTY_PLACEHOLDERS"));
+	let force = normalized(env.get("MAPLE_KITTY_PLACEHOLDERS"));
 	if matches!(force.as_str(), "1" | "true" | "on" | "yes" | "y") {
 		return true;
 	}
@@ -113,7 +114,7 @@ pub fn detect_kitty_unicode_placeholders_support(terminal_id: TerminalId, env: &
 	}
 	if is_inside_terminal_multiplexer(env)
 		&& env
-			.get("PI_FORCE_IMAGE_PROTOCOL")
+			.get("MAPLE_FORCE_IMAGE_PROTOCOL")
 			.map(|value| value.trim().eq_ignore_ascii_case("kitty"))
 			.unwrap_or(false)
 	{
@@ -171,6 +172,140 @@ pub fn encode_kitty_virtual_placement(
 	params.push(format!("r={rows}"));
 	let payload = format!("\x1b_G{}\x1b\\", params.join(","));
 	wrap_tmux_passthrough_if_needed(&payload, env)
+}
+/// A parsed direct-placement line: the `a=p` APC an image block's last row
+/// carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KittyPlacementLine {
+	/// Transmitted image id (`i=`).
+	pub image_id: u32,
+	/// Replacement placement id (`p=`), when present.
+	pub placement_id: Option<u32>,
+	/// Cell columns (`c=`).
+	pub columns: usize,
+	/// Cell rows (`r=`).
+	pub rows: usize,
+}
+
+/// Unwrap tmux DCS passthrough envelopes, restoring the doubled `ESC` bytes.
+fn unwrap_tmux_passthrough(line: &str) -> Option<String> {
+	if !line.contains("\x1bPtmux;") {
+		return Some(line.to_string());
+	}
+	let mut out = String::new();
+	let mut rest = line;
+	while let Some(start) = rest.find("\x1bPtmux;") {
+		out.push_str(&rest[..start]);
+		let after = &rest[start + "\x1bPtmux;".len()..];
+		let end = after.find("\x1b\\")?;
+		out.push_str(&after[..end].replace("\x1b\x1b", "\x1b"));
+		rest = &after[end + 2..];
+	}
+	out.push_str(rest);
+	Some(out)
+}
+
+/// Parse a decimal parameter body (`key=digits`) from `text` at `key`.
+fn parse_apc_number<'a>(text: &'a str, key: &str) -> Option<(u32, &'a str)> {
+	let mut rest = text;
+	loop {
+		let (head, tail) = rest.split_once(',')?;
+		if let Some(value) = head.strip_prefix(key) {
+			let digits = value;
+			if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+				return None;
+			}
+			return Some((digits.parse().ok()?, tail));
+		}
+		rest = tail;
+	}
+}
+
+/// Parse a frame line that consists solely of a Kitty direct placement (the last
+/// line of an image block). `None` for anything else — placeholder grids,
+/// transmit-and-display, plain text — so callers fall back to writing the line
+/// verbatim.
+pub fn parse_kitty_direct_placement_line(line: &str) -> Option<KittyPlacementLine> {
+	let unwrapped = unwrap_tmux_passthrough(line)?;
+	let mut body = unwrapped.as_str();
+	if let Some(tail) = body.strip_prefix("\x1b7") {
+		body = tail;
+		if let Some(tail) = body.strip_prefix("\x1b[") {
+			let end = tail.find('A')?;
+			let digits = &tail[..end];
+			if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+				return None;
+			}
+			body = &tail[end + 1..];
+		}
+	}
+	let mut body = body.strip_prefix("\x1b_Ga=p,q=2,C=1,i=")?;
+	let end = body.find(',')?;
+	let image_id = body[..end].parse().ok()?;
+	body = &body[end + 1..];
+	let mut placement_id = None;
+	if let Some((value, tail)) = parse_apc_number(body, "p=") {
+		placement_id = Some(value);
+		body = tail;
+	}
+	let mut columns = 0usize;
+	if let Some((value, tail)) = parse_apc_number(body, "c=") {
+		columns = value as usize;
+		body = tail;
+	}
+	let mut rows = 0usize;
+	if let Some((value, tail)) = parse_apc_number(body, "r=") {
+		rows = value as usize;
+		body = tail;
+	}
+	let body = body.strip_suffix("\x1b8").unwrap_or(body);
+	if body != "\x1b\\" {
+		return None;
+	}
+	if columns == 0 || rows == 0 {
+		return None;
+	}
+	Some(KittyPlacementLine { image_id, placement_id, columns, rows })
+}
+
+/// Rebuild a direct-placement line for the viewport row it is written at. The
+/// component-rendered line encodes `CUU(rows-1)`, which clamps at the viewport
+/// top once the block's leading rows have scrolled out; anchor at the block's
+/// first *visible* row instead, clipping the source rectangle (`y=`/`h=`, image
+/// pixels) to the visible bottom slice.
+pub fn encode_kitty_placement_line(
+	image_id: u32,
+	placement_id: u32,
+	columns: usize,
+	rows: usize,
+	screen_row: usize,
+	image_height_px: u32,
+	env: &impl EnvReader,
+) -> String {
+	let clippable = image_height_px > 0;
+	let hidden_rows = if clippable { rows.saturating_sub(1).saturating_sub(screen_row) } else { 0 };
+	let visible_rows = rows - hidden_rows;
+	let mut params = vec![
+		"a=p".to_string(),
+		"q=2".to_string(),
+		"C=1".to_string(),
+		format!("i={image_id}"),
+		format!("p={placement_id}"),
+		format!("c={columns}"),
+		format!("r={visible_rows}"),
+	];
+	if hidden_rows > 0 {
+		let src_y = (u64::from(image_height_px) * hidden_rows as u64 / rows as u64) as u32;
+		params.push(format!("y={src_y}"));
+		params.push(format!("h={}", (image_height_px - src_y).max(1)));
+	}
+	let apc = wrap_tmux_passthrough_if_needed(&format!("\x1b_G{}\x1b\\", params.join(",")), env);
+	let cuu = visible_rows.saturating_sub(1);
+	if cuu > 0 {
+		format!("\x1b7\x1b[{cuu}A{apc}\x1b8")
+	} else {
+		apc
+	}
 }
 
 /**
@@ -317,13 +452,13 @@ mod tests {
 
 	#[test]
 	fn placeholder_support_honors_opt_out_and_opt_in() {
-		let off = env(&[("PI_NO_KITTY_PLACEHOLDERS", "1")]);
+		let off = env(&[("MAPLE_NO_KITTY_PLACEHOLDERS", "1")]);
 		assert!(!detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &off));
 
-		let both = env(&[("PI_KITTY_PLACEHOLDERS", "0"), ("PI_NO_KITTY_PLACEHOLDERS", "1")]);
+		let both = env(&[("MAPLE_KITTY_PLACEHOLDERS", "0"), ("MAPLE_NO_KITTY_PLACEHOLDERS", "1")]);
 		assert!(!detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &both));
 
-		let force = env(&[("PI_KITTY_PLACEHOLDERS", "yes")]);
+		let force = env(&[("MAPLE_KITTY_PLACEHOLDERS", "yes")]);
 		assert!(detect_kitty_unicode_placeholders_support(TerminalId::Warp, &force));
 	}
 
@@ -360,7 +495,7 @@ mod tests {
 		assert!(detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &tmux));
 		let herdr = env(&[("HERDR_ENV", "1")]);
 		assert!(!detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &herdr));
-		let forced = env(&[("HERDR_ENV", "1"), ("PI_FORCE_IMAGE_PROTOCOL", "kitty")]);
+		let forced = env(&[("HERDR_ENV", "1"), ("MAPLE_FORCE_IMAGE_PROTOCOL", "kitty")]);
 		assert!(detect_kitty_unicode_placeholders_support(TerminalId::Kitty, &forced));
 	}
 

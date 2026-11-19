@@ -1,5 +1,4 @@
-//! Fuzzy matching utilities.
-//!
+//! Reference: `l/src/fuzzy.ts`.
 //! Ports `l/src/fuzzy.ts`. Matching is deliberately word-local for normal words:
 //! this keeps a query like "image provider" from matching a long setting
 //! description only because the letters i-m-a-g-e appear somewhere in order

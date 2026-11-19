@@ -176,6 +176,15 @@ pub struct GoalState {
     pub token_budget: Option<u64>,
 }
 
+/// Time-of-day pricing period advertised by the model catalog.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PricingPeriod {
+    /// Peak pricing (`↑`).
+    Peak,
+    /// Off-peak pricing (`↓`).
+    OffPeak,
+}
+
 /// Session facts shared by several segments.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SessionInfo {
@@ -205,6 +214,8 @@ pub struct SessionInfo {
     pub slow_mode_label: Option<String>,
     /// Whether the model is billed through a subscription.
     pub using_subscription: bool,
+    /// Active time-of-day pricing period, when the catalog advertises one.
+    pub pricing_period: Option<PricingPeriod>,
 }
 
 /// A simple enabled/disabled mode.
@@ -789,7 +800,7 @@ fn brand_mark(glyph: &str, profile: &Option<String>) -> String {
     }
 }
 
-/// Turn timer in omp's brand format.
+/// Turn timer in maple's brand format.
 fn brand_timer(elapsed_ms: u64) -> String {
     let seconds = elapsed_ms / 1_000;
     if seconds < 60 {
@@ -1139,19 +1150,21 @@ pub fn billing_summary(ctx: &SegmentContext, theme: &dyn StatusTheme) -> Option<
     let subagent_cost = ctx.subagent_tree_cost.unwrap_or(0.0).max(task_result_cost);
     let advisor_cost = ctx.session.advisor_cost;
     let premium_requests = normalize_premium_requests(ctx.usage_stats.premium_requests);
+    let pricing_period = ctx.session.pricing_period;
     let using_subscription = ctx.session.using_subscription;
     if own_cost == 0.0
         && subagent_cost == 0.0
         && advisor_cost == 0.0
         && !using_subscription
         && premium_requests == 0.0
+        && pricing_period.is_none()
     {
         return None;
     }
 
     let mut parts: Vec<String> = Vec::new();
     let mut shown_subscription = using_subscription;
-    if own_cost != 0.0 {
+    if own_cost != 0.0 || pricing_period.is_some() || subagent_cost != 0.0 {
         parts.push(format_spend(
             own_cost,
             using_subscription,
@@ -1174,6 +1187,12 @@ pub fn billing_summary(ctx: &SegmentContext, theme: &dyn StatusTheme) -> Option<
     }
     if subagent_cost != 0.0 {
         parts.push(format!("(+{:.2})", subagent_cost));
+    }
+    if let Some(period) = pricing_period {
+        parts.push(match period {
+            PricingPeriod::Peak => "↑".to_string(),
+            PricingPeriod::OffPeak => "↓".to_string(),
+        });
     }
     if premium_requests != 0.0 {
         parts.push(format!("★ {}", format_number(premium_requests)));
@@ -1233,7 +1252,7 @@ fn project_dir_display(ctx: &SegmentContext, project_dir: &str) -> (bool, String
 // Segment Implementations
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn pi_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment {
+fn brand_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment {
     if let Some(agent) = &ctx.focused_agent_id {
         let ghost = theme.symbol("icon.ghost");
         let icon = if ghost.is_empty() {
@@ -1247,7 +1266,7 @@ fn pi_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment 
         .brand_fg_ansi
         .clone()
         .unwrap_or_else(|| theme.fg_ansi("dim"));
-    let opts = ctx.options.pi.clone().unwrap_or_default();
+    let opts = ctx.options.brand.clone().unwrap_or_default();
     let profile = if opts.show_profile() {
         ctx.session.profile.clone()
     } else {
@@ -1259,7 +1278,7 @@ fn pi_segment(theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment 
             brand_mark(&brand_spinner_frame(theme, ctx), &profile),
             brand_timer(elapsed)
         ),
-        None => brand_mark(&theme.symbol("icon.omp"), &profile),
+        None => brand_mark(&theme.symbol("icon.maple"), &profile),
     };
     RenderedSegment::shown(format!("{fg}{content}\x1b[39m"))
 }
@@ -1986,7 +2005,7 @@ pub fn render_segment(id: SegmentId, ctx: &SegmentContext) -> RenderedSegment {
 /// Render one catalog segment against an explicit theme.
 pub fn render_segment_with(id: SegmentId, theme: &dyn StatusTheme, ctx: &SegmentContext) -> RenderedSegment {
     match id {
-        SegmentId::Pi => pi_segment(theme, ctx),
+        SegmentId::Brand => brand_segment(theme, ctx),
         SegmentId::Status => status_segment(theme, ctx),
         SegmentId::Model => model_segment(theme, ctx),
         SegmentId::Mode => mode_segment(theme, ctx),
@@ -2306,19 +2325,19 @@ mod tests {
     }
 
     #[test]
-    fn pi_segment_spinner_and_timer() {
+    fn brand_segment_spinner_and_timer() {
         let mut ctx = sample_ctx();
         ctx.turn_elapsed_ms = Some(65_000);
         ctx.session.profile = Some("work".to_string());
-        assert_eq!(render(SegmentId::Pi, &ctx).content, "⠋-work 1m\x1b[39m");
+        assert_eq!(render(SegmentId::Brand, &ctx).content, "⠋-work 1m\x1b[39m");
     }
 
     #[test]
-    fn pi_segment_ghost_for_focused_agent() {
+    fn brand_segment_ghost_for_focused_agent() {
         let mut ctx = sample_ctx();
         ctx.focused_agent_id = Some("agent-7".to_string());
         assert_eq!(
-            render(SegmentId::Pi, &ctx).content,
+            render(SegmentId::Brand, &ctx).content,
             "👻 agent-7\x1b[39m"
         );
     }
@@ -2429,6 +2448,18 @@ mod tests {
         ctx.session.advisor_cost = 0.4;
         let summary = billing_summary(&ctx, &PlainTheme).unwrap();
         assert_eq!(summary, "S1.23 + 👁 $0.40");
+    }
+
+    #[test]
+    fn billing_summary_marks_pricing_period() {
+        let mut ctx = sample_ctx();
+        ctx.usage_stats.cost = 0.0;
+        ctx.usage_stats.premium_requests = 0.0;
+        ctx.session.using_subscription = false;
+        ctx.session.pricing_period = Some(PricingPeriod::Peak);
+        assert_eq!(billing_summary(&ctx, &PlainTheme).unwrap(), "$0.00 ↑");
+        ctx.session.pricing_period = Some(PricingPeriod::OffPeak);
+        assert_eq!(billing_summary(&ctx, &PlainTheme).unwrap(), "$0.00 ↓");
     }
 
     #[test]

@@ -1,4 +1,5 @@
 //! Fixed-height viewport over supplied rows or a lazily rendered child.
+//! Reference: `l/src/components/scroll-view.ts`.
 //!
 //! The viewport slices a logical row buffer at its own scroll offset, draws an
 //! optional scrollbar column, and forwards scroll keys and wheel events.

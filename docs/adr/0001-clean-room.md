@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Accepted |
+| Status | Amended 2026-11-16 |
 | Date | 2026-11-15 |
 | Deciders | user (decision), IronWolf (proposal) |
 | Review date | 2026-12-15 |
@@ -48,6 +48,23 @@ Forking was rejected by the user: maple must be implemented from scratch
   comment.
 - No third-party copyright lines are required beyond the reference table.
 
+## Amendment 2026-11-16
+
+The user mandated a total port: every file under `l/` (the oh-my-pi TypeScript
+source) and `l/test` is to be reproduced in Rust, 1:1. That supersedes the
+"inspiration only" framing above — the reference source is now the binding
+specification, not merely reading material.
+
+The Decision's clean-room constraint stands in its verifiable form: **no
+source is copied, vendored, or imported**; every line under `crates/` is
+written fresh, in Rust, from that specification. Behaviour and file/wire
+formats are reproduced 1:1; expression is not.
+
+Consequences as amended: interfaces are re-derived from the reference source
+(`l/src/**`, read-only) and `oh-my-pi/docs/*`; every ported module cites the
+file it reproduces in its module doc, and `team.memory/port-coverage.md`
+tracks the mapping.
+
 ## Evidence
 
 - User instruction, 2026-11-15: "jangan di fork, impl dari 0 kita tapi inspirasi
@@ -55,8 +72,19 @@ Forking was rejected by the user: maple must be implemented from scratch
 - oh-my-pi v18.20.2, commit `7c49c11` (read 2026-11-15): `docs/tui.md`,
   `docs/session.md`, `docs/tools/edit.md`, `docs/memory.md`.
 - pi-messenger v0.15.2 (read 2026-11-15): `store.ts`, `lib.ts`, `feed.ts`.
+- User instruction, 2026-11-16: "impl sepenuhnya @l/" — port the whole `l/`
+  tree 1:1; the clean-room claim must be corrected to match.
 
 ## Review
 
 If a module later requires a vendored dependency, that dependency must be
 listed in `THIRD-PARTY-NOTICES` with license and version before merge.
+
+## Amendment 2026-11-17
+
+The consequence above — "No third-party copyright lines are required beyond
+the reference table" — applies only to the reference source (`l/` and the
+`oh-my-pi`/`pi-messenger` specifications). It does not cover third-party
+crates: maple links crates.io crates as build dependencies, and each is
+attributed with its license and version in `THIRD-PARTY-NOTICES` (121 rows,
+runtime and transitive). Those notices are required and must be kept current.

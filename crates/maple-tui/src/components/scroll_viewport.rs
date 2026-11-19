@@ -1,4 +1,5 @@
 //! Shared viewport geometry: scroll bounds, visible ranges, and scrollbar thumbs.
+//! Reference: `l/src/components/scroll-viewport.ts`.
 //!
 //! These helpers are the single source of truth for `ScrollView`, `ScrollViewport`,
 //! and any other component that windows a logical row buffer.

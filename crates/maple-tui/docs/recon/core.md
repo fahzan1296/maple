@@ -1,4 +1,4 @@
-# Behavioral Spec — `@oh-my-pi/pi-tui` v18.20.2 core (`l/src`)
+# Behavioral Spec — `maple-tui` v18.20.2 core (`l/src`)
 
 Scope: the 17 requested modules. All contracts below are behavior/format only (no TS copied). Constants and byte sequences verified against source are given literally; anything reconstructed rather than re-read is marked `[INFERENCE]`. Line anchors are `file:line`.
 
@@ -35,7 +35,7 @@ Scope: the 17 requested modules. All contracts below are behavior/format only (n
 
 Static timing constants (`tui.ts:977-1146`): `#INPUT_FRAME_INTERVAL_MS = 1000/30`, `#INPUT_RENDER_GRACE_MS = 1000/30`, `#MAX_ADAPTIVE_RENDER_MS = 200`, `#MAX_PENDING_OUTPUT_BYTES = STDOUT_BACKLOG_CLEAR_BYTES` (= 256 KiB, `terminal.ts:272`), `#OUTPUT_BACKLOG_RETRY_MS = 10`, `#RESIZE_VIEWPORT_SETTLE_MS = 120`, `#RESIZE_PROBE_TIMEOUT_MS = 200`, `#RESIZE_REBUILD_NOTICE_MIN_BYTES = 7*1024*1024`, `#MAX_ROW_MOVES = 3`, `#GHOSTTY_INITIAL_IMAGE_DELAY_MS = 100`, `#OSC66_MAX_SPACER_ROWS = 6`, `#NATIVE_PROBE_HOLD_MS = 300`, `#NATIVE_CONFIRM_MS = 1000`, `#NATIVE_CONFIRM_GRACE_MS = 100`.
 
-Env flags read: `PI_HARDWARE_CURSOR` (default hardware-cursor preference), `PI_TUI_MAX_FPS` (clamped 1..1000 in `tui.ts`, default from `minFrameIntervalMs()`), `PI_TUI_RESIZE_IN_PLACE` (`1/true`, `0/false`), `PI_TUI_RESIZE_SCROLLBACK` (`append|rebuild|preserve`, default `preserve`), `PI_DEBUG_REDRAW` (append resize-anchor lines to debug log).
+Env flags read: `PI_HARDWARE_CURSOR` (default hardware-cursor preference), `PI_TUI_MAX_FPS` (clamped 1..1000 in `tui.ts`, default from `minFrameIntervalMs()`), `PI_TUI_RESIZE_IN_PLACE` (`1/true`, `0/false`), `PI_TUI_RESIZE_SCROLLBACK` (`append|rebuild|preserve`, default `preserve`), `PI_DEBUG_REDRAW` (append resize-anchor lines to debug log). maple-tui reads the `MAPLE_`-prefixed names through `maple_tui::env_lookup`, which still honours these legacy `PI_*` names as a fallback.
 
 ### 1.2 Public types (`tui.ts:207-539`)
 

@@ -190,7 +190,7 @@ Exports captured: `latexToBlock(src): string[]` (latex-block.ts:1449), `describe
 - `encodeBundledGlyphRegistrations(metrics)` concatenates registrations for every `glyphs` key (hex → codepoint).
 - `isPrivateUseCodepoint`: `0xE000–0xF8FF`, `0xF0000–0xFFFFD`, `0x100000–0x10FFFD`.
 - `parseGlyphProtocolReply`: body split on `;`; `s`→`{verb,formats:fmt.split(",")}`; `q`→`{cp:parseInt(cp,16),coverage:status.split(",")}`; `r`→`{cp,status:parseInt(10),reason?}`; `c`→`{status,reason?}`; unknown verb/malformed ⇒ null; empty list values mean none.
-- `GLYPH_CONFIRMATION_CODEPOINT = 0xf0d57` (`icon.omp`); `GLYPH_BUNDLE` from `theme/glyph-bundle.json` with `upm`, `aw`, `lh`, `glyphs: Record<hex,{glyf,stretch?}>`.
+- `GLYPH_CONFIRMATION_CODEPOINT = 0xf0d57` (`icon.maple`); `GLYPH_BUNDLE` from `theme/glyph-bundle.json` with `upm`, `aw`, `lh`, `glyphs: Record<hex,{glyf,stretch?}>`.
 
 ### 6.2 Kitty Unicode placeholders — `l/src/kitty-graphics.ts`
 
@@ -217,7 +217,7 @@ Exports captured: `latexToBlock(src): string[]` (latex-block.ts:1449), `describe
 - `sendNotification`: suppressed/headless ⇒ return; `routeTerminalMultiplexerNotification` first, then `writeTerminalSequence(formatted)`; Bell + `shouldDeliverDesktopNotification(id,true)` ⇒ `sendDesktopNotification`.
 - `isSshSession`: any of `SSH_CONNECTION|SSH_TTY|SSH_CLIENT`.
 - `isNotificationSuppressed`: `PI_NOTIFICATIONS` ∈ {off,0,false}.
-- `getForcedImageProtocol`: `PI_FORCE_IMAGE_PROTOCOL` → kitty/iterm2|iterm/sixel, or off|none|0|false ⇒ null, unknown ⇒ null; `isImageProtocolForced()` true when defined (including off).
+- `getForcedImageProtocol`: `PI_FORCE_IMAGE_PROTOCOL` (now `MAPLE_FORCE_IMAGE_PROTOCOL`) → kitty/iterm2|iterm/sixel, or off|none|0|false ⇒ null, unknown ⇒ null; `isImageProtocolForced()` true when defined (including off).
 - `getTerminalBackgroundColor` / `setTerminalBackgroundColor`: trusted OSC 11 value else `detectTerminalBackground()==="light" ? 0xffffff : 0x000000`.
 - `isWindowsTerminalPreviewSixelSupported`: win32 + `WT_SESSION` + `TERM_PROGRAM=windows_terminal` (version gating continues past line 260).
 
@@ -315,7 +315,7 @@ gitignore,gitattributes,gitmodules,editorconfig,npmrc,prettierrc,eslintrc,pretti
 
 ### 7.7 utils — `l/src/utils.ts`
 
-- `Ellipsis` re-exported from `@oh-my-pi/pi-natives`; `DEFAULT_TAB_WIDTH` from `pi-utils`.
+- `Ellipsis` and `DEFAULT_TAB_WIDTH` are re-exported by `l/src/utils.ts`.
 - Hangul: `HangulCompatibilityJamoWidth = "platform"|"unicode"|1|2`; `setHangulCompatibilityJamoWidth` bumps `widthConfigEpoch` on change and forwards wire code (`unicode`→3, number→itself, else 0); `getWidthConfigEpoch()`; `publishLineWidths`/`getPublishedLineWidths` weak sidecar keyed by exact lines array, validated element-wise and epoch-stamped; `resetHangulCompatibilityJamoWidthForTests`.
 - `encodeTextSizing(text,{scale,widthCells,verticalAlign,horizontalAlign})`: metadata `s=<1|2|3>`, `w=<trunc≥0>`, `v=<0|1|2>`, `h=<0|1|2>` joined by `:`; unsafe control chars (`\x00-\x1f\x7f-\x9f`) replaced with spaces; output `\x1b]66;<meta>;<safeText>\x1b\\`.
 - `truncateToWidth(text,maxWidth,ellipsisKind?,pad?)`: `maxWidth=max(0,maxWidth|0)`; fast path returns text unchanged when `!pad && !text.includes("\x1b]66") && text.length*3 <= maxWidth`; otherwise native `truncateToWidth(text,maxWidth, ellipsisKind (string ⇒ Ellipsis.Omit, default Unicode), pad??false, DEFAULT_TAB_WIDTH)`.
@@ -353,4 +353,4 @@ gitignore,gitattributes,gitmodules,editorconfig,npmrc,prettierrc,eslintrc,pretti
 
 ## Checks for the implementing agent
 
-Read before writing Rust: `l/src/autocomplete.ts` (providers, insertion, `subsequenceScore`), `l/src/latex-to-unicode.ts` + `latex-block.ts` (symbol tables and block rules), `l/src/vim.ts` (command/motion/operator/register/mark tables and integration points), `l/src/terminal-capabilities.ts:260-end` + `l/src/terminal.ts`/`active-terminal.ts` (query flow, caching, `TERMINAL` construction), `l/src/multiplexers/*.ts` (per-multiplexer env keys, precedence, notifier payloads), and the remaining `chat/` renderers listed in the coverage gap. The native `@oh-my-pi/pi-natives` width/sixel primitives are referenced by `utils.ts`/`terminal-capabilities.ts` and are not defined in this repo.
+Read before writing Rust: `l/src/autocomplete.ts` (providers, insertion, `subsequenceScore`), `l/src/latex-to-unicode.ts` + `latex-block.ts` (symbol tables and block rules), `l/src/vim.ts` (command/motion/operator/register/mark tables and integration points), `l/src/terminal-capabilities.ts:260-end` + `l/src/terminal.ts`/`active-terminal.ts` (query flow, caching, `TERMINAL` construction), `l/src/multiplexers/*.ts` (per-multiplexer env keys, precedence, notifier payloads), and the remaining `chat/` renderers listed in the coverage gap. The native width/sixel primitives are referenced by `l/src/utils.ts`/`l/src/terminal-capabilities.ts` and are not defined in this repo.

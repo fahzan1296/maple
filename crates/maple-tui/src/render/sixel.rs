@@ -1,4 +1,5 @@
 //! SIXEL passthrough helpers (port of `l/src/render/sixel.ts`).
+//! Reference: `l/src/render/sixel.ts`.
 //!
 //! Terminals that support SIXEL receive the raw control sequence unchanged;
 //! everywhere else the sequence is stripped by the sanitizer. Passthrough is
@@ -18,27 +19,27 @@ static SIXEL_SEQUENCE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 static SIXEL_PLACEHOLDER_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"__OMP_SIXEL_SEQUENCE_(\d+)__").expect("valid regex"));
 
-/// Parse a pi-utils style boolean flag (`1`, `true`, `yes`, `on`).
+/// Parse a maple-tui style boolean flag (`1`, `true`, `yes`, `on`).
 fn flag(name: &str) -> bool {
-    match std::env::var(name) {
-        Ok(value) => {
+    match crate::env_lookup(name).and_then(|value| value.into_string().ok()) {
+        Some(value) => {
             let value = value.trim().to_ascii_lowercase();
             matches!(value.as_str(), "1" | "true" | "yes" | "on")
         }
-        Err(_) => false,
+        None => false,
     }
 }
 
 /// Whether SIXEL passthrough is explicitly enabled.
 ///
 /// Both gates must be enabled to preserve SIXEL control sequences:
-/// `PI_FORCE_IMAGE_PROTOCOL=sixel` and `PI_ALLOW_SIXEL_PASSTHROUGH=1`.
+/// `MAPLE_FORCE_IMAGE_PROTOCOL=sixel` and `MAPLE_ALLOW_SIXEL_PASSTHROUGH=1`.
 pub fn is_sixel_passthrough_enabled() -> bool {
-    let forced = std::env::var("PI_FORCE_IMAGE_PROTOCOL")
-        .ok()
+    let forced = crate::env_lookup("MAPLE_FORCE_IMAGE_PROTOCOL")
+        .and_then(|value| value.into_string().ok())
         .map(|value| value.trim().eq_ignore_ascii_case("sixel"))
         .unwrap_or(false);
-    forced && flag("PI_ALLOW_SIXEL_PASSTHROUGH")
+    forced && flag("MAPLE_ALLOW_SIXEL_PASSTHROUGH")
 }
 
 /// Whether the text contains a SIXEL start sequence.
@@ -92,6 +93,89 @@ where
             preserved.get(index).cloned().unwrap_or_default()
         })
         .into_owned()
+}
+
+/// XTSMGRAPHICS query plus a DA1 sentinel, so a terminal that answers only
+/// DA1 resolves as unsupported.
+pub const XTSMGRAPHICS_QUERY: &str = "\x1b[?2;1;0S\x1b[c";
+
+/// Whether `sequence` is an XTSMGRAPHICS reply (`CSI ? 2 ; … S`).
+pub fn is_xtsmgraphics_reply(sequence: &str) -> bool {
+    sequence.starts_with("\x1b[?2;") && sequence.ends_with('S')
+}
+
+/// Parse a successful XTSMGRAPHICS reply into the terminal's maximum SIXEL
+/// geometry in pixels. Non-zero status replies are unsupported.
+pub fn parse_xtsmgraphics_reply(sequence: &str) -> Option<(u32, u32)> {
+    if !is_xtsmgraphics_reply(sequence) {
+        return None;
+    }
+    let body = sequence.strip_prefix("\x1b[?2;")?.strip_suffix('S')?;
+    let mut parts = body.split(';');
+    let status: u32 = parts.next()?.parse().ok()?;
+    if status != 0 {
+        return None;
+    }
+    let width = parts.next()?.parse().ok()?;
+    let height = parts.next()?.parse().ok()?;
+    Some((width, height))
+}
+
+/// SIXEL capability probe state.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SixelProbe {
+    max: Option<(u32, u32)>,
+    da1_seen: bool,
+}
+
+impl SixelProbe {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Bytes to write at startup.
+    #[must_use]
+    pub fn begin() -> &'static str {
+        XTSMGRAPHICS_QUERY
+    }
+
+    /// Consume one raw stdin sequence. Returns whether it belonged to the
+    /// probe (an XTSMGRAPHICS reply or the DA1 sentinel).
+    pub fn feed(&mut self, sequence: &str) -> bool {
+        if is_xtsmgraphics_reply(sequence) {
+            self.max = parse_xtsmgraphics_reply(sequence);
+            return true;
+        }
+        if crate::terminal::program_status::is_da1_response(sequence) {
+            self.da1_seen = true;
+            return true;
+        }
+        false
+    }
+
+    /// Whether the terminal reported a maximum SIXEL geometry.
+    #[must_use]
+    pub fn supported(&self) -> bool {
+        self.max.is_some()
+    }
+
+    /// The reported maximum geometry, if any.
+    #[must_use]
+    pub fn max(&self) -> Option<(u32, u32)> {
+        self.max
+    }
+
+    /// Whether a DA1 sentinel arrived.
+    #[must_use]
+    pub fn da1_seen(&self) -> bool {
+        self.da1_seen
+    }
+
+    /// Invalidate support (terminal restart).
+    pub fn stop(&mut self) {
+        self.max = None;
+        self.da1_seen = false;
+    }
 }
 
 #[cfg(test)]

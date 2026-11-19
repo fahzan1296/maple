@@ -102,6 +102,30 @@ All notable changes to this project are documented here. The format follows
 - Engine slice #2: `render::{row_moves, types}` — the unsynchronized row-move
   finder (`find_row_move`, `apply_row_move`, `row_move_sequence`) reproducing
   the reference's out-of-window gain drop via signed bounds, plus `TreeContext`.
+- Engine slice #3: `render::render_utils` gains the tree-prefix helpers
+  (`build_tree_prefix`, `get_tree_branch`, `get_tree_continue_prefix`), a
+  dependency-free incremental `Hasher`, a bounded `RenderCache`, and a
+  background-aware `pad_to_width`.
+- Engine slice #4: `chrome::{live_board,dynamic_border,visual_truncate}` — the
+  in-place live repaint board (timer left to the caller), the dynamic border
+  component, and tail-windowed visual truncation.
+- Engine slice #5: `render::width_aware_text` adds `wrap_tree_line` /
+  `wrap_guided_line`, completing `l/src/render/hanging-wrap.ts`.
+- Engine slice #6: `render::{tree_list, file_list}` — `render_tree_list`
+  (generic `render_item` closure, collapse budget, muted "… N more" row) and
+  `render_file_list` / `describe_file_list`, plus `hyperlink::{file_link_span,
+  url_link_span}` completing `l/src/render/hyperlink.ts`.
+- Engine slice #7: `native::{quiet, tone, icons, measure}` — the describe-time
+  motion gate, theme-colour ↔ tone mapping, PUA icon-span normalization, and the
+  row estimator.
+- `team.memory/port-coverage.md` and `team.memory/port-test-coverage.md` —
+  exhaustive MISSING/PARTIAL coverage maps for `l/src` (457 files) and
+  `l/test` (354 files).
+- `THIRD-PARTY-NOTICES` runtime-dependency table: all 121 crates resolved in
+  `Cargo.lock` with version, license, and upstream URL (14 not yet vendored are
+  marked `verify on first build`); clean-room wording in `README.md`,
+  `PRD.md`, and `CONTRIBUTING.md` now distinguishes the reference source from
+  linked third-party crates.
 
 ### Changed
 
@@ -120,6 +144,26 @@ All notable changes to this project are documented here. The format follows
   2026-11-15).
 - Stack decision: pure Rust (ADR-0003) — one binary, no Bun/Node; TUI on
   `ratatui` + `crossterm`.
+- Correction: `ratatui` is not a dependency of maple (absent from `Cargo.toml`
+  and `Cargo.lock`); the TUI is built directly on `crossterm`. See
+  `docs/adr/0003-pure-rust.md` Amendment 2026-11-17.
+- `docs/adr/0001-clean-room.md` and `docs/adr/0003-pure-rust.md` amended
+  (2026-11-17): the "no third-party copyright lines" consequence is scoped to
+  the reference source, and the TUI stack is corrected to `crossterm`.
+- Total rebrand to maple: inherited `pi`/`omp`/`oh-my-pi` names removed from
+  code and docs. Environment variables are now `MAPLE_*` and still honour the
+  legacy `PI_*` name as a fallback (`maple_tui::env_lookup`); the custom-theme
+  directory is `~/.maple/tui/themes` (legacy `~/.pi/tui/themes` still found);
+  the theme symbol key is `icon.maple`; the status-line brand segment id is
+  `brand` (`pi` still parses). Wire bytes (APC/OSC/TSP sentinels, `omp.*` roles,
+  the OSC 99 app name) are unchanged so the protocol stays 1:1 with `l/`.
+- Clean-room claim corrected (ADR-0001 amended 2026-11-16): maple is a
+  clean-room **re-implementation** — the Rust source is written from scratch and
+  no code is copied or vendored, while behaviour and file/wire formats are
+  reproduced 1:1 from the reference source, which is read as the specification.
+  `README.md`, `PRD.md`, `CONTRIBUTING.md`, `THIRD-PARTY-NOTICES`,
+  `CODE_OF_CONDUCT.md`, `.github/PULL_REQUEST_TEMPLATE.md` and `docs/README.md`
+  updated to match.
 
 ### Notes
 

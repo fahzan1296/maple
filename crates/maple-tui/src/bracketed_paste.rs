@@ -1,4 +1,5 @@
 //! Bracketed paste decoding (port of `l/src/bracketed-paste.ts`).
+//! Reference: `l/src/bracketed-paste.ts`.
 
 pub const PASTE_START: &str = "\x1b[200~";
 pub const PASTE_END: &str = "\x1b[201~";

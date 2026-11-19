@@ -8,7 +8,7 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SegmentId {
     /// Brand mark, working spinner, and turn timer.
-    Pi,
+    Brand,
     /// Extension/hook status text.
     Status,
     /// Model name plus thinking-level tail.
@@ -68,7 +68,7 @@ pub enum SegmentId {
 impl SegmentId {
     /// Every catalog identifier, in declaration order.
     pub const ALL: &'static [SegmentId] = &[
-        SegmentId::Pi,
+        SegmentId::Brand,
         SegmentId::Status,
         SegmentId::Model,
         SegmentId::Mode,
@@ -101,7 +101,7 @@ impl SegmentId {
     /// The stable identifier string used by settings and the TypeScript source.
     pub fn as_str(self) -> &'static str {
         match self {
-            SegmentId::Pi => "pi",
+            SegmentId::Brand => "brand",
             SegmentId::Status => "status",
             SegmentId::Model => "model",
             SegmentId::Mode => "mode",
@@ -133,7 +133,13 @@ impl SegmentId {
     }
 
     /// Parse a configured identifier; `None` when it is not in the catalog.
+    ///
+    /// The legacy `"pi"` spelling still resolves to [`SegmentId::Brand`] so
+    /// existing settings keep working.
     pub fn parse(value: &str) -> Option<Self> {
+        if value == "pi" {
+            return Some(SegmentId::Brand);
+        }
         Self::ALL.iter().copied().find(|id| id.as_str() == value)
     }
 
@@ -344,14 +350,14 @@ impl SeparatorStyle {
     }
 }
 
-/// `pi` segment options.
+/// `brand` segment options.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PiOptions {
+pub struct BrandOptions {
     /// Append the active profile tag to the brand glyph.
     pub show_profile: Option<bool>,
 }
 
-impl PiOptions {
+impl BrandOptions {
     /// Effective `show_profile`; defaults to `true`.
     pub fn show_profile(&self) -> bool {
         self.show_profile.unwrap_or(true)
@@ -468,8 +474,8 @@ impl TimeOptions {
 /// Per-segment display options.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SegmentOptions {
-    /// `pi` options.
-    pub pi: Option<PiOptions>,
+    /// `brand` options.
+    pub brand: Option<BrandOptions>,
     /// `model` options.
     pub model: Option<ModelOptions>,
     /// `path` options.
@@ -484,7 +490,7 @@ impl SegmentOptions {
     /// Merge `over` on top of `base`; set fields win, unset fields fall through.
     pub fn merge(base: &SegmentOptions, over: &SegmentOptions) -> SegmentOptions {
         SegmentOptions {
-            pi: merge_group(base.pi.as_ref(), over.pi.as_ref(), |b, o| PiOptions {
+            brand: merge_group(base.brand.as_ref(), over.brand.as_ref(), |b, o| BrandOptions {
                 show_profile: o.show_profile.or(b.show_profile),
             }),
             model: merge_group(base.model.as_ref(), over.model.as_ref(), |b, o| {
@@ -584,7 +590,7 @@ pub fn preset(name: StatusLinePreset) -> PresetDef {
     match name {
         StatusLinePreset::Default => PresetDef {
             left_segments: vec![
-                SegmentId::Pi,
+                SegmentId::Brand,
                 SegmentId::Vim,
                 SegmentId::Model,
                 SegmentId::Mode,
@@ -668,7 +674,7 @@ pub fn preset(name: StatusLinePreset) -> PresetDef {
         },
         StatusLinePreset::Full => PresetDef {
             left_segments: vec![
-                SegmentId::Pi,
+                SegmentId::Brand,
                 SegmentId::Vim,
                 SegmentId::Hostname,
                 SegmentId::Model,
@@ -716,7 +722,7 @@ pub fn preset(name: StatusLinePreset) -> PresetDef {
         },
         StatusLinePreset::Nerd => PresetDef {
             left_segments: vec![
-                SegmentId::Pi,
+                SegmentId::Brand,
                 SegmentId::Vim,
                 SegmentId::Hostname,
                 SegmentId::Model,
@@ -886,7 +892,7 @@ mod tests {
         assert_eq!(
             ids,
             vec![
-                "pi", "status", "model", "mode", "path", "git", "pr", "subagents",
+                "brand", "status", "model", "mode", "path", "git", "pr", "subagents",
                 "token_in", "token_out", "token_total", "token_rate", "cost",
                 "context_pct", "context_total", "time_spent", "time", "session",
                 "hostname", "cache_read", "cache_write", "cache_hit", "cache",
@@ -906,7 +912,7 @@ mod tests {
         assert_eq!(
             left,
             vec![
-                "pi", "vim", "model", "mode", "collab", "stream", "path", "git",
+                "brand", "vim", "model", "mode", "collab", "stream", "path", "git",
                 "pr", "context_pct", "cost",
             ]
         );

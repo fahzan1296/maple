@@ -1,4 +1,5 @@
 //! Ownership of stdout by a started [`ProcessTerminal`].
+//! Reference: `l/src/active-terminal.ts`.
 //!
 //! Port of `l/src/active-terminal.ts`. The terminal that owns stdout is kept in
 //! a leaf module so writers that `terminal.rs` itself imports (capabilities,

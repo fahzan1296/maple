@@ -1,4 +1,5 @@
 //! Selectable list with keyboard navigation and type-to-filter search.
+//! Reference: `l/src/components/select-list.ts`.
 //!
 //! Ports `l/src/components/select-list.ts`. Items carry a stable `key`, a
 //! `title`, and optional `label`/`description`/`disabled`/`confirmation`
@@ -387,29 +388,44 @@ impl SelectList {
         self.state.visible_items().get(index)
     }
 
-    /// Fire [`Self::on_select`] with the currently selected item.
-    pub fn on_select(&mut self, callback: impl FnMut(&SelectItem) + 'static) -> &mut Self {
-        self.on_select = Some(Box::new(callback));
-        self
-    }
+	/// Fire [`Self::on_select`] with the currently selected item.
+	pub fn on_select(&mut self, callback: impl FnMut(&SelectItem) + 'static) -> &mut Self {
+		self.on_select = Some(Box::new(callback));
+		self
+	}
 
-    /// Fire [`Self::on_cancel`] on cancel.
-    pub fn on_cancel(&mut self, callback: impl FnMut() + 'static) -> &mut Self {
-        self.on_cancel = Some(Box::new(callback));
-        self
-    }
+	/// Replace the select callback (None clears).
+	pub fn set_on_select(&mut self, callback: Option<Box<dyn FnMut(&SelectItem) + 'static>>) {
+		self.on_select = callback;
+	}
 
-    /// Fire [`Self::on_selection_change`] whenever the highlighted row changes.
-    pub fn on_selection_change(&mut self, callback: impl FnMut(&SelectItem) + 'static) -> &mut Self {
-        self.on_selection_change = Some(Box::new(callback));
-        self
-    }
+	/// Fire [`Self::on_cancel`] on cancel.
+	pub fn on_cancel(&mut self, callback: impl FnMut() + 'static) -> &mut Self {
+		self.on_cancel = Some(Box::new(callback));
+		self
+	}
 
-    /// Fire [`Self::on_filter_changed`] when the filter text changes.
-    pub fn on_filter_changed(&mut self, callback: impl FnMut(&str) + 'static) -> &mut Self {
-        self.on_filter_changed = Some(Box::new(callback));
-        self
-    }
+	/// Replace the cancel callback (None clears).
+	pub fn set_on_cancel(&mut self, callback: Option<Box<dyn FnMut() + 'static>>) {
+		self.on_cancel = callback;
+	}
+
+	/// Fire [`Self::on_selection_change`] whenever the highlighted row changes.
+	pub fn on_selection_change(&mut self, callback: impl FnMut(&SelectItem) + 'static) -> &mut Self {
+		self.on_selection_change = Some(Box::new(callback));
+		self
+	}
+
+	/// Replace the selection-change callback (None clears).
+	pub fn set_on_selection_change(&mut self, callback: Option<Box<dyn FnMut(&SelectItem) + 'static>>) {
+		self.on_selection_change = callback;
+	}
+
+	/// Fire [`Self::on_filter_changed`] when the filter text changes.
+	pub fn on_filter_changed(&mut self, callback: impl FnMut(&str) + 'static) -> &mut Self {
+		self.on_filter_changed = Some(Box::new(callback));
+		self
+	}
 
     /// Move the selection one step for a wheel notch.
     pub fn handle_wheel(&mut self, delta: isize) {

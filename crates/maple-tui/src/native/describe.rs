@@ -1,4 +1,5 @@
 //! Builders for [`NativeNode`] trees, so `describe()` implementations read as
+//! Reference: `l/src/native/describe.ts`.
 //! node expressions, plus the [`NativeDescribe`] contract for built-in
 //! components.
 //!
@@ -21,12 +22,12 @@ pub const CURSOR_MARKER: &str = "\x1b_pi:c\x07";
 
 /// A node of any kind.
 pub fn node(
-    kind: NodeKind,
+    kind: impl Into<NodeKind>,
     props: Props,
     children: Vec<NativeNode>,
     key: Option<&str>,
 ) -> NativeNode {
-    let mut node = NativeNode::with_children(kind, props, children);
+    let mut node = NativeNode::with_children(kind.into(), props, children);
     node.key = key.map(str::to_string);
     node
 }
@@ -40,9 +41,9 @@ pub fn span(t: impl Into<String>, s: Option<&str>) -> Span {
 }
 
 /// Plain or styled text.
-pub fn text(content: NodeText, props: Props) -> NativeNode {
+pub fn text(content: impl Into<NodeText>, props: Props) -> NativeNode {
     let mut node = NativeNode::with_props(NodeKind::Text, props);
-    match content {
+    match content.into() {
         NodeText::Plain(text) => node.props.set_text(text),
         NodeText::Spans(spans) => node.props.set_spans(spans),
     };

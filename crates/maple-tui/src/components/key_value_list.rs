@@ -1,4 +1,5 @@
 //! Aligned label/value list with wrapped continuations and selection.
+//! Reference: `l/src/components/key-value-list.ts`.
 
 use crate::component::Component;
 use crate::keys::{is_arrow_down, is_arrow_up, is_end, is_home, Key};

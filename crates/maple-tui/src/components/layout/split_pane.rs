@@ -1,4 +1,5 @@
 //! Two-pane horizontal split with a fixed left column.
+//! Reference: `l/src/components/layout/split-pane.ts`.
 
 use crate::component::Component;
 

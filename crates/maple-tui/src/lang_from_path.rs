@@ -1,4 +1,5 @@
 //! Language detection from file paths.
+//! Reference: `l/src/lang-from-path.ts`.
 //!
 //! Ports `l/src/lang-from-path.ts` plus the language brand-color table from
 //! `l/src/theme/theme-class.ts`. The extension table maps an extension segment

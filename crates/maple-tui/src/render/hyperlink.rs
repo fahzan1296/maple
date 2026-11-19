@@ -1,4 +1,5 @@
 //! OSC 8 terminal hyperlinks for paths and URLs.
+//! Reference: `l/src/render/hyperlink.ts`.
 //!
 //! [`hyperlink`] wraps display text in `ESC ] 8 ; id=HASH ; URI ESC \ TEXT
 //! ESC ] 8 ; ; ESC \`. Emission is gated by the `tui.hyperlinks` policy
@@ -12,6 +13,7 @@ use std::io::IsTerminal;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use crate::ansi_scan::{scan, strip_ansi, Token};
+use crate::native::node::Span;
 use crate::text_shape::visible_width;
 
 const OSC: &str = "\x1b]";
@@ -75,6 +77,12 @@ pub fn hyperlink_mode() -> HyperlinkMode {
         2 => HyperlinkMode::Always,
         _ => HyperlinkMode::Auto,
     }
+}
+
+/// Whether native link spans and nodes may carry an `href`: everything but an
+/// explicit `off` policy.
+pub fn is_native_link_enabled() -> bool {
+    hyperlink_mode() != HyperlinkMode::Off
 }
 
 /// Whether OSC 8 hyperlinks should be emitted under the active policy.
@@ -213,7 +221,10 @@ fn normalize_http_url(url: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let candidate = if trimmed.len() >= 4 && trimmed[..4].eq_ignore_ascii_case("www.") {
+    let candidate = if trimmed
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("www."))
+    {
         format!("https://{trimmed}")
     } else {
         trimmed.to_string()
@@ -289,12 +300,18 @@ fn file_url_parts(file_path: &str) -> Option<(String, String)> {
 /// Build a `file:` URI for `file_path`, honoring the configured remote target
 /// and optional cursor position. Returns `None` when the path cannot be
 /// encoded.
-pub fn try_file_uri(file_path: &str, position: FilePosition, local: bool) -> Option<String> {
+fn build_file_uri(
+    file_path: &str,
+    position: &FilePosition,
+    local: bool,
+    target: Option<&(String, String)>,
+) -> Option<String> {
     let (authority, path) = file_url_parts(file_path)?;
     let file_url = format!("file://{authority}{path}");
-    let _ = local;
-    let target = FILE_TARGET.read().ok();
-    let Some((scheme, host)) = target.as_ref().and_then(|guard| guard.as_ref()) else {
+    if local {
+        return Some(file_url);
+    }
+    let Some((scheme, host)) = target else {
         return Some(file_url);
     };
     // Preserve UNC servers so the handler can reconstruct the network path.
@@ -316,6 +333,19 @@ pub fn try_file_uri(file_path: &str, position: FilePosition, local: bool) -> Opt
         query.push_str(&format!("col={col}"));
     }
     Some(format!("{scheme}://{host}{target_path}{query}"))
+}
+
+/// Build a `file:` URI for `file_path`, honoring the configured remote target
+/// and optional cursor position. Returns `None` when the path cannot be
+/// encoded.
+pub fn try_file_uri(file_path: &str, position: FilePosition, local: bool) -> Option<String> {
+    let target = FILE_TARGET.read().ok();
+    build_file_uri(
+        file_path,
+        &position,
+        local,
+        target.as_ref().and_then(|guard| guard.as_ref()),
+    )
 }
 
 /// Build the OSC 8 target for a file path on a terminal. VS Code navigates the
@@ -350,6 +380,42 @@ pub fn file_hyperlink(file_path: &str, display_text: &str, position: FilePositio
         Some(uri) => hyperlink(display_text, &uri),
         None => display_text.to_string(),
     }
+}
+
+/// A native link span to an HTTP(S) URL (`www.` inputs become `https://`).
+///
+/// Unlike the OSC 8 wrappers this ignores terminal capability detection — a
+/// TSP terminal always handles `href` — but honours an explicit `off` policy.
+/// Non-HTTP(S) or unparsable URLs yield a plain span.
+pub fn url_link_span(target: &str, display_text: &str, s: &str) -> Span {
+	if !is_native_link_enabled() {
+		return Span::styled(display_text, s);
+	}
+	match normalize_http_url(target) {
+		Some(href) if safe_uri(&href) => {
+			let mut span = Span::styled(display_text, s);
+			span.href = Some(href);
+			span
+		}
+		_ => Span::styled(display_text, s),
+	}
+}
+
+/// A native link span to a filesystem path using the configured file-link
+/// target. Honours an explicit `off` policy.
+pub fn file_link_span(file_path: &str, display_text: &str, s: &str) -> Span {
+	if !is_native_link_enabled() {
+		return Span::styled(display_text, s);
+	}
+	let href = try_file_uri(file_path, FilePosition::default(), false).filter(|uri| safe_uri(uri));
+	match href {
+		Some(href) => {
+			let mut span = Span::styled(display_text, s);
+			span.href = Some(href);
+			span
+		}
+		None => Span::styled(display_text, s),
+	}
 }
 
 /// Remove every OSC 8 open/close sequence, leaving the display text in place.
@@ -466,6 +532,14 @@ mod tests {
     }
 
     #[test]
+    fn url_normalization_tolerates_multibyte_prefixes() {
+        // Byte index 4 is not a char boundary for these; a byte slice would panic.
+        assert_eq!(normalize_http_url("ab€x"), None);
+        assert_eq!(normalize_http_url("€www.example.com"), None);
+        assert_eq!(normalize_http_url("www.€x"), Some("https://www.€x".to_string()));
+    }
+
+    #[test]
     fn strip_hyperlinks_keeps_display_text() {
         let linked = "\x1b]8;id=abc;https://x\x1b\\label\x1b]8;;\x1b\\";
         assert_eq!(strip_hyperlinks(linked), "label");
@@ -499,6 +573,27 @@ mod tests {
             Some("file:///tmp/a%20b.rs".to_string())
         );
         assert_eq!(try_file_uri("", FilePosition::default(), true), None);
+    }
+
+    #[test]
+    fn local_flag_bypasses_remote_target() {
+        let remote = Some(("handler".to_string(), "file://remote".to_string()));
+        assert_eq!(
+            build_file_uri("/tmp/a.rs", &FilePosition::default(), true, remote.as_ref()),
+            Some("file:///tmp/a.rs".to_string())
+        );
+        assert_eq!(
+            build_file_uri("/tmp/a.rs", &FilePosition::default(), false, remote.as_ref()),
+            Some("handler://file://remote/tmp/a.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn native_link_policy_gate() {
+        apply_hyperlink_setting(Some(HyperlinkMode::Off));
+        assert!(!is_native_link_enabled());
+        apply_hyperlink_setting(Some(HyperlinkMode::Auto));
+        assert!(is_native_link_enabled());
     }
 
     #[test]

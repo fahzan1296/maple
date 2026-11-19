@@ -1,4 +1,5 @@
 //! Deterministic block and braille sparklines.
+//! Reference: `l/src/components/sparkline.ts`.
 
 use crate::component::Component;
 use crate::style::Style;

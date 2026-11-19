@@ -1,4 +1,5 @@
 //! Inline metric row: labelled values laid out across the viewport width.
+//! Reference: `l/src/components/metric.ts`.
 
 use crate::component::Component;
 use crate::style::{Color, Style};

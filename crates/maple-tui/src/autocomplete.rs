@@ -1,4 +1,5 @@
 //! Autocomplete providers and the suggestion popup.
+//! Reference: `l/src/autocomplete.ts`.
 //!
 //! Ports `l/src/autocomplete.ts`. A provider turns the editor buffer plus the
 //! cursor position into ranked [`AutocompleteItem`]s and applies the selected

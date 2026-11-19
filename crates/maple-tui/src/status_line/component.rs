@@ -62,7 +62,7 @@ enum Direction {
     Right,
 }
 
-/// Map a segment to the native action a click asks omp to open.
+/// Map a segment to the native action a click asks maple to open.
 ///
 /// Mirrors `NATIVE_SEGMENT_ACTIONS`; segments without an entry are inert.
 pub fn segment_action(id: SegmentId) -> Option<&'static str> {
@@ -1036,7 +1036,7 @@ mod tests {
         install_theme();
         let mut bar = StatusLine::new();
         bar.set_segments(vec![
-            StatusLineItem::left(SegmentId::Pi),
+            StatusLineItem::left(SegmentId::Brand),
             StatusLineItem::left(SegmentId::Model),
             StatusLineItem::left(SegmentId::Path),
             StatusLineItem::left(SegmentId::Git),

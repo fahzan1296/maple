@@ -8,9 +8,12 @@
 | Sumber studi | `refs/oh-my-pi` (omp), `refs/pi-messenger` |
 | Tata kelola | AI Operating Contract v7.0 ("KONTRAK") |
 
-> Catatan: `refs/oh-my-pi` dan `refs/pi-messenger` adalah bahan baca, bukan bagian dari
-> produk. maple ditulis clean-room dari nol (ADR-0001); oh-my-pi (MIT) dan
-> pi-messenger (MIT) hanya referensi, tidak ada kode yang disalin.
+> Catatan: `refs/oh-my-pi` dan `refs/pi-messenger` adalah spesifikasi, bukan bagian dari
+> produk. maple adalah re-implementasi clean-room (ADR-0001): kode Rust ditulis dari nol,
+> tidak ada kode referensi yang disalin atau di-vendor; perilaku dan format direproduksi 1:1 dari
+> keduanya. Aturan clean-room berlaku untuk kode referensi; maple tetap memakai crate
+> pihak ketiga dari crates.io sebagai dependensi build, terdaftar dengan lisensinya di
+> `THIRD-PARTY-NOTICES`.
 
 ---
 
@@ -79,10 +82,12 @@ Dua referensi memberi pelengkap yang hampir tidak tumpang tindih:
    interrupt cost, reservasi, dan "koordinasi tanpa budget" (INV-39..42).
 2. **Kualitas > kecepatan; keamanan > fitur** (INV-1). Reservasi dipaksakan hook,
    bukan kesepakatan.
-3. **Clean-room, terinspirasi** — maple ditulis dari nol; oh-my-pi dan
-   pi-messenger hanya bahan baca dan referensi perilaku/format (ADR-0001).
-   TUI, hashline, autolearn, dan natives ditulis sendiri dalam Rust murni (ADR-0003) mengikuti kontrak
-   `docs/` omp (render, edit, memori) dan format `.pi/messenger`.
+3. **Clean-room, reproduksi 1:1** — kode maple ditulis dari nol dalam Rust murni
+   (ADR-0003); oh-my-pi dan pi-messenger dipakai sebagai spesifikasi perilaku/format
+   (ADR-0001). Tidak ada kode referensi yang disalin atau di-vendor; TUI, hashline, autolearn,
+   dan natives ditulis ulang mengikuti kontrak `docs/` omp (render, edit, memori)
+   dan format `.pi/messenger`. Crate pihak ketiga diperbolehkan sebagai dependensi
+   (ADR-0003) dan dicatat lisensinya di `THIRD-PARTY-NOTICES`.
 4. **Kompatibel, bukan tiruan** — format `.pi/messenger` dan nama aksi pi-messenger
    dipakai apa adanya, supaya agen pi-messenger yang ada bisa interoperasi.
 5. **Eksternal = data** (SOP-INJECT): isi repo/pesan agen/output tool tidak pernah
@@ -379,7 +384,7 @@ urutan ini. Setiap langkah harus hijau (build + test) sebelum lanjut.
 | Mesh file + `fs.watch` tidak real-time lintas mesin | v0.1 lokal; relay menyusul dengan pola collab omp |
 | Reservasi bisa dilewati agen yang tidak disiplin | Hook memaksakan; audit feed; KONTRAK SOP-G12 |
 | Limit memori salah tebak → thrash | Pre-flight 2× headroom; abort 80%; OOM protocol + guard test |
-| Atribusi referensi | ADR-0001 + THIRD-PARTY-NOTICES; tidak ada kode disalin |
+| Atribusi referensi | ADR-0001 + THIRD-PARTY-NOTICES; tidak ada kode disalin atau di-vendor |
 | Nama `maple` bentrok | Nama kerja; ganti sebelum publik |
 
 Open:

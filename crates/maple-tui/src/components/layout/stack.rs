@@ -1,4 +1,5 @@
 //! Vertical stacking of children.
+//! Reference: `l/src/components/layout/stack.ts`.
 
 use crate::component::Component;
 

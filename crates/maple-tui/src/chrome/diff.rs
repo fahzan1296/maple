@@ -3,13 +3,16 @@
 //! Ported from `l/src/chrome/diff.ts`. The compact diff text accepted here is
 //! omp's `+12|added` / `-12|removed` / ` 12|context` row format (plus the
 //! legacy `+12 added` form). The TS renderer batch-highlights context lines
-//! through pi-natives' syntax highlighter; no highlighter is available under
-//! the crate's dependency set, so context lines render with the context style
-//! and indent visualization only.
+//! through pi-natives' syntax highlighter; that package is not a dependency
+//! here, so [`DiffHighlighter`] injects it. Without one, context lines render
+//! with the context style and indent visualization only.
 
 use crate::component::Component;
+use crate::native::describe::node;
+use crate::native::node::{NativeNode, NodeKind, Props};
 use crate::style::{Color, Style};
 use crate::text_shape::{truncate_to_width, Ellipsis};
+use crate::tools::shell_viz::sanitize_text;
 
 /// Display columns one tab expands to.
 const TAB_WIDTH: usize = 3;
@@ -187,6 +190,27 @@ pub fn parse_hunks(diff_text: &str) -> Vec<DiffHunk> {
     }
     close(&mut hunks, &mut lines, &mut changed, old_start, new_start);
     hunks
+}
+
+/// Native `diff` node for omp's compact diff text.
+///
+/// Reference: `nativeDiff` in `l/src/chrome/diff.ts`. The terminal owns the
+/// gutters, word emphasis, syntax highlighting and the unchanged-line count
+/// between hunks; this only carries the runs of rows as `hunks`.
+pub fn native_diff(diff_text: &str, props: Props) -> NativeNode {
+	let hunks = parse_hunks(&sanitize_text(diff_text))
+		.iter()
+		.map(|hunk| {
+			serde_json::json!({
+				"oldStart": hunk.old_start,
+				"newStart": hunk.new_start,
+				"lines": hunk.lines,
+			})
+		})
+		.collect::<Vec<_>>();
+	let mut props = props;
+	props.insert("hunks", serde_json::Value::Array(hunks));
+	node(NodeKind::Diff, props, Vec::new(), None)
 }
 
 /// Theme for diff rendering.
@@ -401,13 +425,44 @@ fn format_line(
     format!("{padded}│{content}")
 }
 
+/// Syntax highlighter for runs of unchanged rows.
+///
+/// Reference: `highlightContextLines` in `l/src/chrome/diff.ts` imports
+/// pi-natives' highlighter and its path→language table. Neither exists in this
+/// crate's dependency set, so callers inject them; without one, context rows
+/// keep the plain context style (see the module docs).
+pub trait DiffHighlighter {
+	/// Highlight one run of context rows; `None` when the path's language is
+	/// unknown, in which case the run renders unhighlighted.
+	fn highlight_context(&self, path: &str, lines: &[String]) -> Option<Vec<String>>;
+}
+
+/// Optional inputs of [`render_diff_with`].
+#[derive(Clone, Copy, Default)]
+pub struct DiffRenderOptions<'a> {
+	/// File path used to resolve the highlighting language.
+	pub file_path: Option<&'a str>,
+	/// Injected highlighter.
+	pub highlighter: Option<&'a dyn DiffHighlighter>,
+}
+
 /// Render a compact diff into styled rows.
 ///
 /// Rows are painted with the theme's added/removed/context styles; callers
 /// clamp them with [`crate::text_shape::truncate_to_width`] through
 /// [`DiffView`], which guarantees the component width contract.
 pub fn render_diff(diff_text: &str, theme: &DiffTheme) -> Vec<String> {
-    let lines: Vec<&str> = diff_text.split('\n').collect();
+	render_diff_with(diff_text, theme, &DiffRenderOptions::default())
+}
+
+/// Render with injected context highlighting.
+pub fn render_diff_with(
+	diff_text: &str,
+	theme: &DiffTheme,
+	options: &DiffRenderOptions<'_>,
+) -> Vec<String> {
+    let sanitized = sanitize_text(diff_text);
+    let lines: Vec<&str> = sanitized.split('\n').collect();
     let parsed: Vec<Option<DiffLine>> = lines.iter().map(|line| parse_diff_line(line)).collect();
     let gutter_width = parsed
         .iter()
@@ -415,6 +470,7 @@ pub fn render_diff(diff_text: &str, theme: &DiffTheme) -> Vec<String> {
         .max()
         .unwrap_or(0)
         .max(3);
+    let highlights = context_highlights(&parsed, options);
 
     let mut previous = String::new();
     let mut result = Vec::new();
@@ -503,10 +559,16 @@ pub fn render_diff(diff_text: &str, theme: &DiffTheme) -> Vec<String> {
                 index += 1;
             }
             DiffPrefix::Context => {
+                // Highlighted rows arrive tab-expanded; unhighlighted ones keep
+                // the indent glyphs.
+                let content = match highlights.get(&index) {
+                    Some(highlighted) => replace_tabs(highlighted),
+                    None => visualize_indent(&parsed_line.content, theme),
+                };
                 result.push(theme.context.paint(&format_line(
                     DiffPrefix::Context,
                     &parsed_line.line_number,
-                    &visualize_indent(&parsed_line.content, theme),
+                    &content,
                     gutter_width,
                     &mut previous,
                 )));
@@ -515,6 +577,53 @@ pub fn render_diff(diff_text: &str, theme: &DiffTheme) -> Vec<String> {
         }
     }
     result
+}
+
+/// Highlight runs of consecutive context rows.
+///
+/// Reference: `highlightContextLines` in `l/src/chrome/diff.ts`. Collapse
+/// markers are context rows but not code, so they break runs instead of being
+/// highlighted (`"..."` would tokenize as a spread operator) and must not
+/// stitch unrelated blocks together.
+fn context_highlights(
+	parsed: &[Option<DiffLine>],
+	options: &DiffRenderOptions<'_>,
+) -> std::collections::HashMap<usize, String> {
+	let mut highlights = std::collections::HashMap::new();
+	let (Some(path), Some(highlighter)) = (options.file_path, options.highlighter) else {
+		return highlights;
+	};
+	let mut run_indices: Vec<usize> = Vec::new();
+	let mut run_contents: Vec<String> = Vec::new();
+	let mut flush = |indices: &mut Vec<usize>, contents: &mut Vec<String>| {
+		if contents.is_empty() {
+			return;
+		}
+		if let Some(highlighted) = highlighter.highlight_context(path, contents) {
+			for (slot, index) in indices.iter().enumerate() {
+				if let Some(line) = highlighted.get(slot) {
+					highlights.insert(*index, line.clone());
+				}
+			}
+		}
+		indices.clear();
+		contents.clear();
+	};
+	for (index, parsed) in parsed.iter().enumerate() {
+		let is_context = parsed.as_ref().is_some_and(|parsed| {
+			parsed.prefix == DiffPrefix::Context
+				&& parsed.content != "..."
+				&& parsed.content != "…"
+		});
+		if is_context {
+			run_indices.push(index);
+			run_contents.push(parsed.as_ref().map_or(String::new(), |p| p.content.clone()));
+		} else {
+			flush(&mut run_indices, &mut run_contents);
+		}
+	}
+	flush(&mut run_indices, &mut run_contents);
+	highlights
 }
 
 /// A rendered compact diff, clamped to the viewport width.
@@ -715,5 +824,44 @@ mod tests {
         let mut view = DiffView::new("");
         assert_eq!(view.render(10), vec!["\x1b[90m…\x1b[0m".to_string()]);
         assert_eq!(view.stats(), DiffStats::default());
+    }
+    #[test]
+    fn native_diff_carries_hunks_and_drops_context_only_runs() {
+        let node = native_diff(" 1|anchor\n\n+2|b\n 3|c", Props::new());
+        assert_eq!(node.kind, NodeKind::Diff);
+        let hunks = node.props.get("hunks").and_then(|value| value.as_array()).expect("hunks");
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0]["oldStart"], 2);
+        assert_eq!(hunks[0]["newStart"], 2);
+        assert_eq!(hunks[0]["lines"].as_array().map(Vec::len), Some(2));
+        assert!(native_diff(" 1|only context", Props::new())
+            .props
+            .get("hunks")
+            .and_then(|value| value.as_array())
+            .is_some_and(Vec::is_empty));
+    }
+
+    struct UpperCase;
+
+    impl DiffHighlighter for UpperCase {
+        fn highlight_context(&self, _path: &str, lines: &[String]) -> Option<Vec<String>> {
+            Some(lines.iter().map(|line| line.to_uppercase()).collect())
+        }
+    }
+
+    #[test]
+    fn injected_highlighter_replaces_context_rows() {
+        let theme = DiffTheme::default();
+        let options = DiffRenderOptions {
+            file_path: Some("src/lib.rs"),
+            highlighter: Some(&UpperCase),
+        };
+        let rows = render_diff_with(" 1|alpha\n+2|beta\n 3|gamma", &theme, &options);
+        assert_eq!(rows.len(), 3);
+        assert!(rows[0].contains("ALPHA"), "{:?}", rows[0]);
+        assert!(rows[2].contains("GAMMA"), "{:?}", rows[2]);
+        // No path or highlighter keeps the plain path.
+        let plain = render_diff_with(" 1|alpha", &theme, &DiffRenderOptions::default());
+        assert!(plain[0].contains("alpha"), "{:?}", plain[0]);
     }
 }

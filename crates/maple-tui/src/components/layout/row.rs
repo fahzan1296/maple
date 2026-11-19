@@ -1,4 +1,5 @@
 //! Horizontal composition of equally weighted children.
+//! Reference: `l/src/components/layout/row.ts`.
 
 use crate::component::Component;
 use crate::components::layout::geometry::distribute_width;
