@@ -1,10 +1,23 @@
 [package]
 name = "maple"
+# maple workspace.
+#
+# Virtual manifest: the product crates live under `crates/`. Tooling defaults
+# (edition, lints, dependency pins) are declared once here and inherited with
+# `[lints] workspace = true` / `version.workspace = true` in each member.
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
+edition = "2024"
+rust-version = "1.99"
 license = "MIT"
 description = "ai coding agent"
+repository = "https://github.com/fahzan1296/maple"
 publish = false
 
 [workspace]
@@ -12,6 +25,7 @@ members = ["crates/*"]
 resolver = "2"
 
 [dependencies]
+[workspace.dependencies]
 maple-tui = { path = "crates/maple-tui" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
@@ -21,6 +35,42 @@ serde_json = "1"
 sha2 = "0.10"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 uuid = { version = "1", features = ["v7", "serde"] }
+
+# Lints are opt-in per crate (`[lints] workspace = true`). Strictness lives
+# here so every crate is held to the same bar without repeating tables.
+[workspace.lints.rust]
+# Safety: unsafe code must stay explicit about which operations are unsafe.
+unsafe_op_in_unsafe_fn = "warn"
+undropped_unsafe_debug = "warn"
+# Hygiene: no accidentally-global behaviour.
+unexpected_cfgs = "warn"
+
+[workspace.lints.clippy]
+# Correctness first: these deny whole classes of real bugs.
+arithmetic_side_effects = "warn"
+correctness = "warn"
+suspicious = "warn"
+perf = "warn"
+# Common foot-guns.
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+must_use_candidate = "warn"
+panic = "warn"
+unwrap_used = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+# Ported modules deliberately expose camelCase APIs for source parity; do not
+# spam warnings for them. Everything else is held to snake_case.
+non_snake_case = "allow"
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
 
 [profile.release]
 opt-level = 2

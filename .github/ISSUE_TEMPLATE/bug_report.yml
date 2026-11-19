@@ -1,6 +1,8 @@
 name: Bug report
 description: Report a defect in maple (TUI, mesh, edit, resource guard, autolearn)
 labels: ["bug", "status: triage"]
+description: Something behaves incorrectly
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -8,12 +10,22 @@ body:
         Thanks for taking the time to report a defect.
 
         **Security issues do not belong here.** Read [`SECURITY.md`](https://github.com/Fahzan1296/maple/blob/master/SECURITY.md) and report privately.
+        Thanks for the report. Please include the exact command and output —
+        "it does not work" cannot be reproduced.
   - type: textarea
     id: what-happened
     attributes:
       label: What happened?
       description: What you observed, and what you expected instead.
       placeholder: The TUI freezes when ...
+      label: What happened
+      description: Observed behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
     validations:
       required: true
   - type: textarea
@@ -21,25 +33,43 @@ body:
     attributes:
       label: Reproduction
       description: Exact steps or commands, starting from a clean state.
+      label: Steps to reproduce
       placeholder: |
         1. `maple --headless`
         2. ...
+        1. cargo run -- ...
+        2. press ...
+        3. observe ...
     validations:
       required: true
   - type: textarea
     id: env
+  - type: input
+    id: version
     attributes:
       label: Environment
       description: maple commit or version, OS, Rust version, model/provider.
       placeholder: commit 929db9671b, Linux aarch64 (proot), rustc 1.9x, anthropic/...
+      label: Version / commit
+      placeholder: v0.1.0 or a40a01d
     validations:
       required: true
   - type: textarea
     id: logs
+  - type: dropdown
+    id: os
     attributes:
       label: Logs / output
       description: Relevant excerpt only. Redact secrets before pasting.
       render: text
+      label: Operating system
+      options:
+        - Linux (x86_64)
+        - Linux (aarch64)
+        - macOS (aarch64)
+        - Other
+    validations:
+      required: true
   - type: textarea
     id: impact
     attributes:
@@ -47,6 +77,7 @@ body:
       description: What breaks because of this? Data loss, crash, wrong edit, blocked work?
   - type: checkboxes
     id: before-submitting
+    id: logs
     attributes:
       label: Before submitting
       options:
@@ -56,3 +87,5 @@ body:
           required: true
         - label: This is not a security vulnerability (those go via SECURITY.md)
           required: true
+      label: Relevant output
+      render: shell

@@ -1,0 +1,7 @@
+# clippy configuration. Lint *levels* live in Cargo.toml `[workspace.lints]`;
+# this file only carries thresholds and lint-specific options.
+msrv = "1.99"
+too-many-arguments-threshold = 10
+type-complexity-threshold = 300
+single-char-binding-names-threshold = 5
+# Ported modules keep camelCase APIs for source parity; that is intentional.

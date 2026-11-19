@@ -1,6 +1,8 @@
 name: Feature request
 description: Propose new behavior or a change to an existing one
 labels: ["enhancement", "status: triage"]
+description: Propose a capability or a change in behaviour
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
@@ -12,6 +14,7 @@ body:
       label: Problem
       description: What are you trying to do, and what blocks you?
       placeholder: I cannot ...
+      description: What can you not do today?
     validations:
       required: true
   - type: textarea
@@ -19,6 +22,8 @@ body:
     attributes:
       label: Proposed solution
       description: The behavior you want, and (optionally) how it would look in the TUI/CLI.
+      label: Proposal
+      description: What should happen instead?
     validations:
       required: true
   - type: textarea
@@ -26,6 +31,7 @@ body:
     attributes:
       label: Alternatives considered
       description: Workarounds, other designs, or why they fall short.
+      description: Including "do nothing".
   - type: textarea
     id: scope
     attributes:
@@ -34,6 +40,7 @@ body:
       placeholder: PRD §7 (mesh), must stay within the per-session memory budget
   - type: checkboxes
     id: before-submitting
+    id: impact
     attributes:
       label: Before submitting
       options:
@@ -41,3 +48,5 @@ body:
           required: true
         - label: This is not a security vulnerability (those go via SECURITY.md)
           required: true
+      label: Impact
+      description: Who benefits, and what breaks if this is wrong?

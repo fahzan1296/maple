@@ -17,12 +17,16 @@
 ## Checklist
 
 - [ ] `cargo build` and `cargo test` are green
+- [ ] `just ci` passes locally (or the failing step is explained below)
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] User-visible behavior reflected in `README.md` / `PRD.md` / `SECURITY.md`
 - [ ] No secrets, mesh state (`.pi/`), or agent state (`.maple/`) added
 - [ ] No code copied or vendored from the reference repositories (clean-room re-implementation, ADR-0001)
 - [ ] Resource limits respected while working (`KONTRAK.md` §SOP-RESLIM)
 - [ ] Security-relevant change reviewed against `SECURITY.md`
+- [ ] No secrets, agent state, or machine-local indexes added
+- [ ] Dependency change? `deny.toml` allow-list and advisories reviewed
+- [ ] New public API has `///` docs and a test
 
 ## Verification
 

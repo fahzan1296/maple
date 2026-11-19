@@ -1,0 +1,39 @@
+# Optional local pre-commit hooks. CI is the authoritative gate; this file just
+# gives the same feedback before a commit.
+#   pip install pre-commit && pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --workspace --all-targets -- -D warnings
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: typos
+        name: typos
+        entry: typos --force-exclude
+        language: system
+        pass_filenames: false
+
+      - id: taplo
+        name: taplo
+        entry: taplo fmt --check --diff
+        language: system
+        files: \.toml$
+        pass_filenames: false
+
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
