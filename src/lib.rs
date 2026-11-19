@@ -6,4 +6,5 @@
 pub mod tui;
 pub mod cli;
 pub mod session;
+pub mod resource_guard;
 pub mod apps;
