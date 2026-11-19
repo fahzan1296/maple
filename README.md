@@ -115,6 +115,11 @@ reference source: maple links third-party crates.io crates as build
 dependencies, each attributed with its license in
 [`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES#runtime-dependencies).
 
+The target architecture is specified in
+[`docs/maple-system-architecture-spec-v2/`](docs/maple-system-architecture-spec-v2/README.md)
+(V2, 32 chapters + appendices). It is the normative design for the greenfield
+systems; the TUI in `crates/maple-tui/` is the reusable presentation asset.
+
 <!-- Project Status -->
 ### :bar_chart: Project Status
 
@@ -139,19 +144,24 @@ decision, 2026-11-15: no M0–M6 phase gates).
 ```
 .
 ├── PRD.md              # product requirements & design (v0.1)
+├── SPEC.md             # product specification
 ├── KONTRAK.md          # AI Operating Contract v7.0 (governance)
 ├── SECURITY.md         # trust boundaries & reporting
 ├── CHANGELOG.md        # Keep a Changelog
 ├── CONTRIBUTING.md     # how to contribute
 ├── CODE_OF_CONDUCT.md  # community expectations
-├── Cargo.toml          # pure-Rust crate
-├── src/                # implementation (CLI, session core, TUI)
+├── Cargo.toml          # cargo workspace root
+├── crates/
+│   └── maple-tui/      # the reusable TUI crate (presentation layer)
+├── src/                # agent binary crate (CLI, session core)
 ├── tests/              # integration tests
-├── assert/             # brand assets (banner, logo, app icon)
-├── assets/             # repository assets (mascot icon)
 ├── docs/
 │   ├── README.md       # documentation index
-│   └── adr/            # architecture decision records
+│   ├── adr/            # architecture decision records
+│   └── maple-system-architecture-spec-v2/  # target architecture (V2)
+├── scripts/            # tooling helpers
+├── justfile            # just recipes (check, fmt, lint, test)
+├── assert/             # brand assets (banner, logo, app icon)
 └── .github/            # issue & PR templates
 ```
 
@@ -196,14 +206,14 @@ i edit · h hub · / command · q quit                                          
 <details>
   <summary>Language</summary>
   <ul>
-    <li><a href="https://www.rust-lang.org/">Rust 1.85+</a> — one binary, no JS runtime (<a href="docs/adr/0003-pure-rust.md">ADR-0003</a>)</li>
+    <li><a href="https://www.rust-lang.org/">Rust 1.99+</a> — one binary, no JS runtime (<a href="docs/adr/0003-pure-rust.md">ADR-0003</a>)</li>
   </ul>
 </details>
 
 <details>
   <summary>Core</summary>
   <ul>
-    <li><code>maple-tui</code> — in-repo terminal renderer: differential buffer, component model, themes, raw-mode input (no ratatui/crossterm)</li>
+    <li><code>maple-tui</code> — in-repo terminal renderer: differential buffer, component model, themes, raw-mode input (<a href="https://github.com/crossterm-rs/crossterm">crossterm</a>, no ratatui)</li>
     <li><a href="https://crates.io/crates/clap">clap</a> — CLI</li>
     <li><a href="https://crates.io/crates/serde">serde</a> / <a href="https://crates.io/crates/serde_json">serde_json</a> — transcript schema</li>
     <li><a href="https://crates.io/crates/sha2">sha2</a> — blob content addressing</li>
