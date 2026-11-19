@@ -38,6 +38,7 @@ considered. Read them before proposing a change to the affected area.
 | [`adr/0002-resource-guard.md`](adr/0002-resource-guard.md) | Runtime resource guard: pre-flight, monitoring, abort at 80% |
 | [`adr/0003-pure-rust.md`](adr/0003-pure-rust.md) | Pure Rust, one binary, no JS runtime; TUI on ratatui + crossterm |
 | [`adr/0004-maple-tui-architecture.md`](adr/0004-maple-tui-architecture.md) | TUI keeps presentation, drops business logic; app boundary above it |
+| [`adr/0005-module-naming.md`](adr/0005-module-naming.md) | Module names state the concept; no split artifacts (`core1`, `state2`, `_more`, `_parts`, `misc`, `mux`, `io_rx`) |
 
 ## Changelog
 
