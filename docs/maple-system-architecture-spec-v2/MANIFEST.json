@@ -1,0 +1,269 @@
+{
+  "title": "Maple Greenfield System Architecture Specification",
+  "edition": "V2",
+  "status": "proposed-target",
+  "repository": "https://github.com/fahzan1296/maple",
+  "baseline_commit": "a40a01d70d346a54b1d65d767ab31f3071aaf726",
+  "pi_compatibility": "optional, isolated adapter, excluded from core/default operation",
+  "documentation_only": true,
+  "files": [
+    {
+      "path": "01-product-and-non-goals.md",
+      "bytes": 5793,
+      "sha256": "97ba08247c7096787a0c769f2f93a4539427ff1865cc49fbe6535317508459d6",
+      "lines": 116
+    },
+    {
+      "path": "02-architecture-principles.md",
+      "bytes": 4578,
+      "sha256": "c04c4e2d98d3c067e52fe065950f4816c1272ddcb270658383675231f771f4e4",
+      "lines": 117
+    },
+    {
+      "path": "03-system-context-and-deployment.md",
+      "bytes": 3695,
+      "sha256": "81f373a1b0557e6ba0feba6c8837410f3fc1320b3539c1fdec7ddba82348a014",
+      "lines": 101
+    },
+    {
+      "path": "04-domain-model.md",
+      "bytes": 3912,
+      "sha256": "375d5dfe14b8bf8f301ab62d0bc9308ccc6f904de89038d1da128e30e7324589",
+      "lines": 134
+    },
+    {
+      "path": "05-runtime-and-lifecycle.md",
+      "bytes": 3498,
+      "sha256": "774d032fb16b4a8f4e37948bfaa452707bde795820426e752d9524a34a1f5f72",
+      "lines": 75
+    },
+    {
+      "path": "06-session-and-transcript.md",
+      "bytes": 3497,
+      "sha256": "b88e26cf923e1c5c5a19141584bb23a01123af2409980a1a793b85124066d480",
+      "lines": 84
+    },
+    {
+      "path": "07-context-and-compaction.md",
+      "bytes": 3040,
+      "sha256": "2d6128b6c7fa6f1e4faa7d4be9161004147eaa16ead091bfa5e8cf366a100794",
+      "lines": 80
+    },
+    {
+      "path": "08-provider-gateway.md",
+      "bytes": 3203,
+      "sha256": "4f109ea51ec6d32ea07b84a2a6ddf1a04451c177a8b766940dbca46d2bc4c1d7",
+      "lines": 93
+    },
+    {
+      "path": "09-agent-orchestration.md",
+      "bytes": 3472,
+      "sha256": "b773745a73b5543ca6f655cb6a70cee1fae90dfbf9e2dbdc630985b99ee25b1b",
+      "lines": 107
+    },
+    {
+      "path": "10-tool-platform.md",
+      "bytes": 3099,
+      "sha256": "278d32080ad0a40e6b868d383e34e4bb2d3e17b95a181d95a1a97756e8ec546d",
+      "lines": 99
+    },
+    {
+      "path": "11-workspace-and-filesystem.md",
+      "bytes": 2578,
+      "sha256": "a20fed433c0987611b9c73a305cee534216318ac6678994170855b8a2cc159b3",
+      "lines": 65
+    },
+    {
+      "path": "12-hashline-editing.md",
+      "bytes": 3314,
+      "sha256": "79123ba99e5f7db36b71ca97ee00e35fef279b9aa02a00919e221df008fc393a",
+      "lines": 82
+    },
+    {
+      "path": "13-native-peer-mesh.md",
+      "bytes": 3923,
+      "sha256": "dc806c4766f5d116f3516bfdb8334c43cfb16935f21b066e19c46b52d09c6875",
+      "lines": 88
+    },
+    {
+      "path": "14-optional-pi-interop.md",
+      "bytes": 3944,
+      "sha256": "fab109ace6ef05fb28be11391d156c0b6dc898a3590559fd94e23cf740d81821",
+      "lines": 100
+    },
+    {
+      "path": "15-crew-scheduler.md",
+      "bytes": 2527,
+      "sha256": "d1c6ac34fb1b5307b24c7e89b6322d1e081be22a7a1afd1e9cec0c32cdf64482",
+      "lines": 74
+    },
+    {
+      "path": "16-memory-and-learning.md",
+      "bytes": 2408,
+      "sha256": "1266dd45546e2e299794cd57fd6db0a2d28ae5d0eae90358733f2fd5be27d422",
+      "lines": 57
+    },
+    {
+      "path": "17-persistence-and-recovery.md",
+      "bytes": 2906,
+      "sha256": "eac7cb839c33ce478187f72d6384bd1f638b41076509068fc6f8dbd82b9de1fe",
+      "lines": 77
+    },
+    {
+      "path": "18-resource-governance.md",
+      "bytes": 3162,
+      "sha256": "fda906dd5e2947e0e2c022877d959caa10740266c6d3991313b2e5b933df14f1",
+      "lines": 96
+    },
+    {
+      "path": "19-security-and-trust.md",
+      "bytes": 3126,
+      "sha256": "137f617661cdadccf6bd3dbf14bd59e7bda9b88684e5ac8a6b7ef8f0c5b02916",
+      "lines": 85
+    },
+    {
+      "path": "20-concurrency-and-backpressure.md",
+      "bytes": 2247,
+      "sha256": "f226a8b0b22a2ef015716534c66a6e299355c877f6ff5b793b3794597c002c9d",
+      "lines": 55
+    },
+    {
+      "path": "21-tui-and-terminal.md",
+      "bytes": 2468,
+      "sha256": "da1f47c419a50156f22ed8e3f94c778281f4284182b97c181674f641c0808c59",
+      "lines": 70
+    },
+    {
+      "path": "22-cli-and-configuration.md",
+      "bytes": 2369,
+      "sha256": "9049e438f1facf02ef14cd7817d91bb8892d3cce93d2ed1c5e63de8745111266",
+      "lines": 69
+    },
+    {
+      "path": "23-errors-and-observability.md",
+      "bytes": 2254,
+      "sha256": "e70fdf501bdfc889da911cace23241f852cdce94ed3cf4267d7afad2461031d1",
+      "lines": 58
+    },
+    {
+      "path": "24-rust-workspace-and-module-map.md",
+      "bytes": 2775,
+      "sha256": "aa1d1a8d0054f5776d2d8a3a1a1e60aca560d620d466ab63dc4d48cbb900aee4",
+      "lines": 59
+    },
+    {
+      "path": "25-testing-and-verification.md",
+      "bytes": 2569,
+      "sha256": "87d74539c65f78fb7e7a1bbd6c715f25b53d2ff9aa03e411f6937e003aab7799",
+      "lines": 83
+    },
+    {
+      "path": "26-performance-and-capacity.md",
+      "bytes": 2028,
+      "sha256": "81846c9a7c56798e736f9a509312501bf703b7a4a7a69cf3a264fac5b74b0edc",
+      "lines": 50
+    },
+    {
+      "path": "27-build-release-and-operations.md",
+      "bytes": 2106,
+      "sha256": "52743e4fb9ae6b72374ce2246004ca64578c6e3cea4b31cab8eb19dccb899f71",
+      "lines": 68
+    },
+    {
+      "path": "28-data-contract-catalog.md",
+      "bytes": 2662,
+      "sha256": "ed56070cecff22b39161e108c6da49471bd176fd99bc065865168fc8a7f089a8",
+      "lines": 62
+    },
+    {
+      "path": "29-state-machine-catalog.md",
+      "bytes": 1761,
+      "sha256": "41b1c61a86da6bda13acdd14409532d8c35175a08e697104ac869e857bff2848",
+      "lines": 49
+    },
+    {
+      "path": "30-failure-mode-analysis.md",
+      "bytes": 2120,
+      "sha256": "0bb32b6664a8fbf26bde49c4f116e587159282d4fe00066bd49300c2ce4c09b6",
+      "lines": 32
+    },
+    {
+      "path": "31-architecture-decisions.md",
+      "bytes": 3024,
+      "sha256": "9195ab089b12d0a856879a81ac34f8b4e70b32555184a9467e7503ae926af013",
+      "lines": 67
+    },
+    {
+      "path": "32-requirement-traceability.md",
+      "bytes": 2751,
+      "sha256": "bc4e69da0e0c177c8e30b72803f69c606b9bd1981fee4fd9fd1caf52c7879b64",
+      "lines": 65
+    },
+    {
+      "path": "APPENDIX-A-sequence-diagrams.md",
+      "bytes": 2103,
+      "sha256": "6e81dfcd23957e330f70a3e5012070b12109db66fdeefc71780cebd2d4c54712",
+      "lines": 85
+    },
+    {
+      "path": "APPENDIX-B-security-review-checklist.md",
+      "bytes": 1623,
+      "sha256": "ae5ee7d5ff29bbecbbba41b4f3d13ffaa8e78fc9af4066afe635f71cec978517",
+      "lines": 44
+    },
+    {
+      "path": "APPENDIX-C-platform-matrix.md",
+      "bytes": 1463,
+      "sha256": "a0fa3f1357da46dde21393c1135bb5fde9877bd05deab275994fba905bf384c0",
+      "lines": 23
+    },
+    {
+      "path": "APPENDIX-D-glossary.md",
+      "bytes": 1564,
+      "sha256": "4e760f50fb823906d9ed5c25cc6d054f2ea81c374fa6163a20776c42c337178d",
+      "lines": 28
+    },
+    {
+      "path": "README.md",
+      "bytes": 5799,
+      "sha256": "45270910412e8c573fca912eb1611ec5f2bead0d8a726c8870693eb9814df410",
+      "lines": 103
+    },
+    {
+      "path": "legacy-reference/01-product-requirements.md",
+      "bytes": 2844,
+      "sha256": "9ba32d4ceea062e5a064ef80ee58e4a392ba693442e89b62f57107a0fea32ee0",
+      "lines": 42
+    },
+    {
+      "path": "legacy-reference/02-architecture-principles.md",
+      "bytes": 3386,
+      "sha256": "69b4383a73a467bb2296941cffaf05c219b0761eb1bce55449efa29baf669ad7",
+      "lines": 82
+    },
+    {
+      "path": "legacy-reference/03-deployment-process-model.md",
+      "bytes": 2534,
+      "sha256": "d7407207eab41f653f2ef0cb68d288717c2e0d4528942581e21069c7af2a32b3",
+      "lines": 66
+    },
+    {
+      "path": "legacy-reference/04-system-encyclopedia.md",
+      "bytes": 3759,
+      "sha256": "7c6e4a415600af0d33f81716e00a76fe51d61a58302a9b3c64fcb18519155f79",
+      "lines": 63
+    },
+    {
+      "path": "legacy-reference/13-peer-mesh.md",
+      "bytes": 2138,
+      "sha256": "51e16aa2f6cf2a59cccae86beca230564c54f739d3750fc435e945a81022dab6",
+      "lines": 41
+    },
+    {
+      "path": "legacy-reference/35-traceability.md",
+      "bytes": 3174,
+      "sha256": "80d1f115d10efddd523b6f403088235ac733576426cec9ae689450b2b04afe51",
+      "lines": 52
+    }
+  ]
+}

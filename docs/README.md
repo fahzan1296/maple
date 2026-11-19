@@ -10,6 +10,16 @@ governed**, and **why decisions were made**.
 | [`../PRD.md`](../PRD.md) | Product requirements and design: goals/non-goals, architecture, session model, mesh contract, TUI, hashline, autolearn, resource guard, security, build order (§14), risks and open questions (§15) |
 | [`../README.md`](../README.md) | Project overview and getting-started for new contributors |
 
+### Target architecture (V2)
+
+[`maple-system-architecture-spec-v2/`](maple-system-architecture-spec-v2/README.md)
+is the normative greenfield design: 32 chapters plus four appendices covering
+domain model, runtime, persistence, providers, tools, hashline editing, peer
+mesh, crew scheduler, resource governance, security, TUI boundary, workspace
+layout, testing, operations, data/state/failure catalogues, requirement
+traceability and glossary. It supersedes PRD prose where the two disagree;
+PRD stays as the historical product record.
+
 ## Governance
 
 | Doc | Contents |
@@ -27,6 +37,7 @@ considered. Read them before proposing a change to the affected area.
 | [`adr/0001-clean-room.md`](adr/0001-clean-room.md) | from-scratch Rust re-implementation; oh-my-pi and pi-messenger are read as the specification |
 | [`adr/0002-resource-guard.md`](adr/0002-resource-guard.md) | Runtime resource guard: pre-flight, monitoring, abort at 80% |
 | [`adr/0003-pure-rust.md`](adr/0003-pure-rust.md) | Pure Rust, one binary, no JS runtime; TUI on ratatui + crossterm |
+| [`adr/0004-maple-tui-architecture.md`](adr/0004-maple-tui-architecture.md) | TUI keeps presentation, drops business logic; app boundary above it |
 
 ## Changelog
 
