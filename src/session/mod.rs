@@ -5,5 +5,8 @@ pub mod path;
 pub mod store;
 pub mod types;
 
-pub use store::{SessionFile, SessionSummary, Store, HEADER_SCAN, STREAM_THRESHOLD, TAIL_SCAN};
+pub use store::{
+    new_entry_id, now_rfc3339, LoadStats, SessionFile, SessionSummary, Store, HEADER_SCAN,
+    MAX_ENTRIES, MAX_HEADER_BYTES, STREAM_THRESHOLD, TAIL_SCAN,
+};
 pub use types::{Identity, SessionEntry, SessionHeader, SESSION_VERSION};
