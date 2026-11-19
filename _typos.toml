@@ -1,0 +1,63 @@
+# typos configuration.
+[files]
+extend-exclude = [
+  "SPEC.md",
+  "l/",
+  "refs/",
+  "**/target/**",
+  "l/",
+  "refs/",
+  ".git/",
+  # Spelling-correction dictionaries and their fixtures: the misspellings here
+  # are test *inputs*, not errors.
+  "crates/maple-tui/src/prompt/macos_spelling.rs",
+  "crates/maple-tui/tests/typing_word.rs",
+  "crates/maple-tui/tests/macos_spelling.rs",
+  "crates/maple-tui/tests/editor_text_assist.rs",
+]
+
+[default]
+extend-ignore-identifiers-re = [
+  # Kitty keyboard protocol names, e.g. CSI u / DECCARA.
+  "(?i).*deccara.*",
+]
+
+[default.extend-words]
+# --- terminal / protocol vocabulary -----------------------------------------
+ratatui = "ratatui"
+# Kitty/SGR mouse reporting name for the button release "B" code.
+Ba = "Ba"
+# ANSI colour ordinal abbreviation used in chart palettes (primary/secondary).
+PN = "PN"
+unparseable = "unparseable"
+
+# --- LaTeX ----------------------------------------------------------------
+# `amsmath` environments and commands are spelled this way.
+multline = "multline"
+oint = "oint"
+hom = "hom"
+
+# --- vim ------------------------------------------------------------------
+viw = "viw"
+diw = "diw"
+
+# --- split-string fragments in layout tests -------------------------------
+# e.g. [" hel ", " lo  ", " wor ", " ld  "] in the wrapping fixtures.
+hel = "hel"
+lo = "lo"
+wor = "wor"
+ld = "ld"
+
+# --- abbreviated column keys in tables/charts -----------------------------
+# Word fragments used as compact field names, not prose.
+quantit = "quantit"
+categor = "categor"
+truncat = "truncat"
+
+# --- recon notes ----------------------------------------------------------
+# tmux `Sxl` format token and truncated grep fragments quoted verbatim.
+Sxl = "Sxl"
+edn = "edn"
+mak = "mak"
+nd = "nd"
+gam = "gam"

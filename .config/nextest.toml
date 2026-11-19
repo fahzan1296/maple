@@ -1,0 +1,18 @@
+# cargo-nextest profiles.
+# The suite links ~330 integration binaries; bound concurrency so a small host
+# does not OOM while linking or running (SOP-RESLIM).
+
+[profile.default]
+# No hidden retries locally: a flaky test must be fixed, not masked.
+retries = 0
+fail-fast = false
+test-threads = 2
+slow-timeout = { period = "60s", terminate-after = 2 }
+final-status-level = "slow"
+
+[profile.ci]
+retries = 2
+fail-fast = true
+test-threads = 2
+slow-timeout = { period = "120s", terminate-after = 2 }
+failure-output = "immediate-final"

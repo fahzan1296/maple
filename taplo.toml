@@ -1,0 +1,9 @@
+# taplo: TOML formatting/validation.
+include = ["**/*.toml"]
+exclude = ["target/**", "**/target/**", ".git/**"]
+
+[formatting]
+align_entries = false
+reorder_keys = false
+indent_string = "  "
+column_width = 100

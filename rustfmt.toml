@@ -1,0 +1,11 @@
+# rustfmt configuration — stable options only (no nightly flags).
+#
+# NOTE: the crate is not yet rustfmt-clean (a full pass is a separate,
+# reviewable commit). Until that lands, `just fmt-check` is advisory locally
+# and must not be a blocking CI gate.
+max_width = 100
+tab_spaces = 4
+hard_tabs = false
+newline_style = "Unix"
+use_field_init_shorthand = true
+use_try_shorthand = true

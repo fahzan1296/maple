@@ -6,3 +6,9 @@ contact_links:
   - name: Security policy
     url: https://github.com/Fahzan1296/maple/blob/master/SECURITY.md
     about: Report vulnerabilities privately, never as a public issue.
+  - name: Security report
+    url: https://github.com/fahzan1296/maple/security/advisories/new
+    about: Report a vulnerability privately, not as a public issue.
+  - name: Question / discussion
+    url: https://github.com/fahzan1296/maple/discussions
+    about: Ask a question or discuss an idea.
