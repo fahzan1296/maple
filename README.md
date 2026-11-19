@@ -153,6 +153,8 @@ decision, 2026-11-15: no M0–M6 phase gates).
 ├── Cargo.toml          # cargo workspace root
 ├── crates/
 │   └── maple-tui/      # the reusable TUI crate (presentation layer)
+├── src/                # agent binary crate (CLI, session core)
+├── tests/              # integration tests
 ├── docs/
 │   ├── README.md       # documentation index
 │   ├── adr/            # architecture decision records
@@ -204,14 +206,14 @@ i edit · h hub · / command · q quit                                          
 <details>
   <summary>Language</summary>
   <ul>
-    <li><a href="https://www.rust-lang.org/">Rust 1.85+</a> — one binary, no JS runtime (<a href="docs/adr/0003-pure-rust.md">ADR-0003</a>)</li>
+    <li><a href="https://www.rust-lang.org/">Rust 1.99+</a> — one binary, no JS runtime (<a href="docs/adr/0003-pure-rust.md">ADR-0003</a>)</li>
   </ul>
 </details>
 
 <details>
   <summary>Core</summary>
   <ul>
-    <li><code>maple-tui</code> — in-repo terminal renderer: differential buffer, component model, themes, raw-mode input (no ratatui/crossterm)</li>
+    <li><code>maple-tui</code> — in-repo terminal renderer: differential buffer, component model, themes, raw-mode input (<a href="https://github.com/crossterm-rs/crossterm">crossterm</a>, no ratatui)</li>
     <li><a href="https://crates.io/crates/clap">clap</a> — CLI</li>
     <li><a href="https://crates.io/crates/serde">serde</a> / <a href="https://crates.io/crates/serde_json">serde_json</a> — transcript schema</li>
     <li><a href="https://crates.io/crates/sha2">sha2</a> — blob content addressing</li>
