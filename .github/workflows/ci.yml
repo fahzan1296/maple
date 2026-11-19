@@ -14,7 +14,9 @@ permissions:
   contents: read
 env:
   # SOP-RESLIM.2: bound build parallelism; the project budgets for constrained
-  # hosts (KONTRAK §SOP-RESLIM, PRD §11).
+  # hosts (KONTRAK §SOP-RESLIM, PRD §11). One build job at a time: the test and
+  # integration targets link large binaries and parallel codegen has OOMed on
+  # small hosts.
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_PROFILE_TEST_DEBUG: 0
@@ -23,12 +25,15 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # Fast feedback: the `maple-tui` library and the root `maple` crate (binary +
+  # lib + its integration tests). Kept separate from the integration job below
+  # so a large link cannot starve this one.
   test:
     name: test (${{ matrix.os }})
     # ubuntu-latest/macOS-latest are acceptable here: every job is timeboxed
-    # and pinned to two build jobs (SOP-RESLIM.2 sized runners).
+    # and pinned to one build job (SOP-RESLIM.2 sized runners).
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -37,23 +42,46 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: Build
-        timeout-minutes: 5
-        run: cargo build -p maple-tui
-      - name: Test
+      - name: Build workspace
+        timeout-minutes: 10
+        run: cargo build --workspace
+      - name: Test maple-tui lib
         timeout-minutes: 10
         run: cargo test -p maple-tui --lib -- --test-threads=2
+      - name: Test maple root crate (lib + integration)
+        timeout-minutes: 10
+        run: cargo test -p maple --lib --tests
+
+  # Integration tests of `maple-tui`: ~328 test files, each its own binary.
+  # `--no-run` links everything first (the expensive, OOM-prone part), then the
+  # run step is cheap. One job, no matrix: the link is the bottleneck.
+  integration:
+    name: integration (maple-tui tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - name: Build integration test binaries
+        timeout-minutes: 25
+        run: cargo test -p maple-tui --tests --no-run
+      - name: Run integration tests
+        timeout-minutes: 10
+        run: cargo test -p maple-tui --tests -- --test-threads=2
 
   lint:
     name: clippy
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: Clippy
+      - name: Clippy maple-tui (lib + tests)
         timeout-minutes: 5
-        run: cargo clippy -p maple-tui -- -D warnings
+        run: cargo clippy -p maple-tui --all-targets -- -D warnings
+      - name: Clippy maple root crate (lib + tests)
+        timeout-minutes: 5
+        run: cargo clippy -p maple --all-targets -- -D warnings
 
   audit:
     name: cargo audit
